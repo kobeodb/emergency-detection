@@ -20,7 +20,6 @@ Basic requirements for the project
 - Ability to detect and track multiple objects in real-time
 - Ability to classify objects based on their behavior in real-time
 - Ability to store and analyze data for future reference
-- Ability to integrate with other systems for better coordination
 - Ability to adapt to different environments and conditions
 - Ability to comply with legal and ethical standards for surveillance and intervention systems
 - Ability to provide real-time feedback to the intervention teams for better decision-making
