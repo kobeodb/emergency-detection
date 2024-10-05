@@ -45,5 +45,16 @@ What does our system need to do?
 
 
 
+Phases in our project:
+    - Data Collection and Preprocessing
+    - Model Development
+    - Integration and Real-Time Processing
+    - Alert System
+    - Testing and Validation
+    - Deployment
+
+
+
+
 
 
