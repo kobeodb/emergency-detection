@@ -1,0 +1,4 @@
+train: /path/to/dataset/images/train
+val: /path/to/dataset/images/val
+nc: 2
+names: ['class1', 'class2']  # List your classes here
