@@ -1,0 +1,2 @@
+from altralytics import YOLO
+
