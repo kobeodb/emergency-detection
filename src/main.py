@@ -1,19 +1,24 @@
-from ultralytics import YOLO
+from util import process_videos
+from yolov5 import train, detect
 
-# Create a new YOLO model from scratch
-model = YOLO("yolo11n.yaml")
+if __name__ == '__main__':
+    videos = [...]
+    out = '../out/dataset/frames'
+    data = './data/data.yaml'
 
-# Load a pretrained YOLO model (recommended for training)
-model = YOLO("yolo11n.pt")
+    process_videos(videos, out, frame_rate=5)
 
-# Train the model using the 'coco8.yaml' dataset for 3 epochs
-results = model.train(data="coco8.yaml", epochs=3)
+    train.run(
+        data_yaml=data,
+        img_size=640,
+        batch_size=16,
+        epochs=100,
+        weights='yolov5s.pt'
+    )
 
-# Evaluate the model's performance on the validation set
-results = model.val()
-
-# Perform object detection on an image using the model
-results = model("https://ultralytics.com/images/bus.jpg")
-
-# Export the model to ONNX format
-success = model.export(format="onnx")
+    detect.run(
+        video_source='test_video.mp4',
+        weights_path='runs/train/exp/weights/best.pt',
+        img_size=640,
+        output_dir='runs/detect'
+    )
