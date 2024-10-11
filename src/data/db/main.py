@@ -1,33 +1,45 @@
-import tempfile
+from typing import List, Iterator
 
-import cv2
-import dotenv
 from minio import Minio, S3Error
+from minio.datatypes import Object
 
-dotenv.load_dotenv()
 
-minio_url = dotenv.get_key("MINIO_URL")
-minio_user = dotenv.get_key("MINIO_USER")
-minio_password = dotenv.get_key("MINIO_PASSWORD")
-minio_bucket_name = dotenv.get_key("MINIO_BUCKET_NAME")
+class MinioBucketWrapper:
+    def __init__(
+            self, url: str,
+            access_key: str,
+            secret_key: str,
+            bucket: str
+    ) -> None:
+        self.client = Minio(
+            url,
+            access_key=access_key,
+            secret_key=secret_key,
+            secure=False
+        )
+        self.bucket = bucket
 
-minio = Minio(
-    minio_url,
-    access_key=minio_user,
-    secret_key=minio_password,
-    secure=False
-)
+    def get_obj(self, obj: str) -> str:
+        try:
+            res = self.client.get_object(self.bucket, obj)
 
-obj = "path/to/object"
+            with open(obj, 'wb') as f:
+                for data in res.stream(32 * 1024):
+                    f.write(data)
 
-temp = tempfile.NamedTemporaryFile(delete=False)
-try:
-    data = minio.get_object(minio_bucket_name, obj)
-    temp.write(data.read())
-    temp.close()
+            print(f"{obj} downloaded!")
+            return obj
 
-    video = cv2.VideoCapture(temp.name)
+        except S3Error as e:
+            print(f"Error occurred: {e}")
 
-except S3Error as exc:
-    print(f"Error occurred: {exc}")
+    def put_obj(self, name: str, path: str) -> None:
+        try:
+            self.client.fput_object(self.bucket, name, path)
+            print(f"{name} uploaded!")
 
+        except S3Error as e:
+            print(f"Error occurred: {e}")
+
+    def list_obj(self) -> list[str]:
+        return [o.object_name for o in self.client.list_objects(self.bucket, recursive=True)]
