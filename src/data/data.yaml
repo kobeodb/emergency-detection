@@ -1,4 +1,4 @@
-train: /path/to/dataset/images/train
-val: /path/to/dataset/images/val
+train: /out/dataset/train/
+val: /out/dataset/val
 nc: 2
-names: ['class1', 'class2']  # List your classes here
+names: ['train', 'value']
