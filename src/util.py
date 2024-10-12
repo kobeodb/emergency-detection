@@ -10,6 +10,7 @@ def extract_frames(path: str, out: str, frame_rate: int = 3) -> None:
     video = cv2.VideoCapture(path)
     os.makedirs(out, exist_ok=True)
     frame_id = 0
+    # TODO: Video doesn't open here for some reason!
     while video.isOpened():
         ret, frame = video.read()
         if not ret:
@@ -21,7 +22,7 @@ def extract_frames(path: str, out: str, frame_rate: int = 3) -> None:
     video.release()
 
 
-def process_videos(videos: List[str], out: str, frame_rate: int = 1) -> None:
+def process_videos(videos: List[str], out: str, frame_rate: int = 3) -> None:
     for v in videos:
         name = Path(v).stem
         v_out = os.path.join(out, name)

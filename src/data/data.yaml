@@ -1,4 +1,4 @@
 train: /out/dataset/train/
 val: /out/dataset/val
 nc: 2
-names: ['train', 'value']
+names: ['falling', 'standing']
