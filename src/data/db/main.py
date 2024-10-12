@@ -1,7 +1,4 @@
-from typing import List, Iterator
-
 from minio import Minio, S3Error
-from minio.datatypes import Object
 
 
 class MinioBucketWrapper:
