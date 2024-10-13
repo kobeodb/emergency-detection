@@ -3,6 +3,7 @@ import os
 from util import process_videos
 from yolov5 import train, detect
 import logging
+import cv2
 
 from data.db.main import MinioBucketWrapper
 
@@ -26,20 +27,20 @@ if __name__ == '__main__':
         minio_bucket_name
     )
 
-    vid = '../out/dataset/videos'
+    path = '../out/dataset/train'
     out = '../out/dataset/frames'
     data = './data/data.yaml'
 
     # for v in os.listdir(put):
     #     client.put_obj(v, put + '/' + v)
 
-    if not os.listdir(vid):
+    if not os.listdir(path):
         videos = [client.get_obj(o)
                   for o in client.list_obj()]
     else:
-        videos = os.listdir(vid)
+        videos = os.listdir(path)
 
-    process_videos(videos, out, frame_rate=5)
+    process_videos([path + '/' + v for v in videos], out, frame_rate=5)
 
     # train.run(
     #     data_yaml=data,

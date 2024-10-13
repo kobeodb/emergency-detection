@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def extract_frames(path: str, out: str, frame_rate: int = 3) -> None:
-    video = cv2.VideoCapture(path)
+    video = cv2.VideoCapture(path, cv2.CAP_FFMPEG)
     os.makedirs(out, exist_ok=True)
     frame_id = 0
     # TODO: Video doesn't open here for some reason!
@@ -24,6 +24,4 @@ def extract_frames(path: str, out: str, frame_rate: int = 3) -> None:
 
 def process_videos(videos: List[str], out: str, frame_rate: int = 3) -> None:
     for v in videos:
-        name = Path(v).stem
-        v_out = os.path.join(out, name)
-        extract_frames(v, v_out, frame_rate)
+        extract_frames(v, out + '/' + Path(v).stem, frame_rate)
