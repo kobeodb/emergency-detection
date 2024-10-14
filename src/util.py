@@ -10,7 +10,6 @@ def extract_frames(path: str, out: str, frame_rate: int = 3) -> None:
     video = cv2.VideoCapture(path, cv2.CAP_FFMPEG)
     os.makedirs(out, exist_ok=True)
     frame_id = 0
-    # TODO: Video doesn't open here for some reason!
     while video.isOpened():
         ret, frame = video.read()
         if not ret:

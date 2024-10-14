@@ -1,4 +1,7 @@
+import re
+
 from minio import Minio, S3Error
+import os
 
 
 class MinioBucketWrapper:
@@ -16,11 +19,11 @@ class MinioBucketWrapper:
         )
         self.bucket = bucket
 
-    def get_obj(self, obj: str) -> str:
+    def get_obj(self, obj: str, path: str = '.') -> str:
         try:
             res = self.client.get_object(self.bucket, obj)
 
-            with open(obj, 'wb') as f:
+            with open(os.path.join(path, obj), 'wb') as f:
                 for data in res.stream(32 * 1024):
                     f.write(data)
 
@@ -40,3 +43,17 @@ class MinioBucketWrapper:
 
     def list_obj(self) -> list[str]:
         return [o.object_name for o in self.client.list_objects(self.bucket, recursive=True)]
+
+    def del_obj(self, pattern: str) -> None:
+        try:
+            objects = self.list_obj()
+
+            cnt = 0
+            for obj in objects:
+                if re.match(pattern, obj):
+                    self.client.remove_object(self.bucket, obj)
+                    cnt += 1
+            print(f"Deleted {cnt} objects!")
+
+        except S3Error as e:
+            print(f"Error occurred: {e}")
