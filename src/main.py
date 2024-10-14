@@ -27,32 +27,33 @@ if __name__ == '__main__':
         minio_bucket_name
     )
 
-    path = '../out/dataset/train'
-    out = '../out/dataset/frames'
+    path = '../out/dataset/train/cropped'
+    frames = '../out/dataset/frames'
+    out = '../out/dataset/results'
     data = './data/data.yaml'
 
     # for v in os.listdir(put):
     #     client.put_obj(v, put + '/' + v)
 
     if not os.listdir(path):
-        videos = [client.get_obj(o)
+        videos = [client.get_obj(o, path)
                   for o in client.list_obj()]
     else:
         videos = os.listdir(path)
 
-    process_videos([path + '/' + v for v in videos], out, frame_rate=5)
+    process_videos([path + '/' + v for v in videos], frames, frame_rate=5)
 
-    # train.run(
-    #     data_yaml=data,
-    #     img_size=640,
-    #     batch_size=16,
-    #     epochs=50,
-    #     weights='yolov5s.pt'
-    # )
-    #
-    # detect.run(
-    #     video_source=test,
-    #     weights_path='runs/train/exp/weights/best.pt',
-    #     img_size=640,
-    #     output_dir='../datasets/detect'
-    # )
+    train.run(
+        data_yaml=data,
+        img_size=640,
+        batch_size=16,
+        epochs=50,
+        weights='yolov5s.pt'
+    )
+
+    detect.run(
+        video_source=path,
+        weights_path='runs/train/exp/weights/best.pt',
+        img_size=640,
+        output_dir=out
+    )
