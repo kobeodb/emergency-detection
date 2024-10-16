@@ -1,4 +1,4 @@
 .idea
-out/
+out/temp/*
 .env
-src/data/weights/
+src/data/weights/*

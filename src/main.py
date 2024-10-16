@@ -9,11 +9,9 @@ from ultralytics import YOLO
 
 from data.db.main import MinioBucketWrapper
 
-DATASET_PATH = '../out/dataset/'
-WEIGHTS_PATH = './data/weights/yolov8n.pt'
+DATASET_PATH = '../out/temp/'
+WEIGHTS_PATH = './data/weights/'
 MODEL_PATH = './data/data.yaml'
-
-WEIGHTS_DEFAULT = 'yolov8n.pt'
 
 FONT_SCALE = 1
 FONT_COLOR = (255, 255, 255)
@@ -39,7 +37,7 @@ def minio_init() -> MinioBucketWrapper:
 def minio_temp_file(func):
     @functools.wraps(func)
     def wrapper(c: MinioBucketWrapper, filename: str, *args, **kwargs):
-        f = c.get_obj_file(filename, DATASET_PATH)
+        f, _ = c.get_obj_file(filename, DATASET_PATH)
 
         func(DATASET_PATH + f, *args, **kwargs)
 
@@ -49,9 +47,16 @@ def minio_temp_file(func):
     return wrapper
 
 
+def use_model(weights: str) -> YOLO:
+    if not weights or weights not in os.listdir(WEIGHTS_PATH):
+        weights = 'yolov8n.pt'
+
+    return YOLO(WEIGHTS_PATH + weights)
+
+
 @minio_temp_file
 def detect(video: str, weights: str = WEIGHTS_PATH) -> None:
-    model = YOLO(weights or WEIGHTS_PATH)
+    model = use_model(weights)
     cap = cv2.VideoCapture(video)
 
     while True:
@@ -84,7 +89,6 @@ def detect(video: str, weights: str = WEIGHTS_PATH) -> None:
 
 if __name__ == '__main__':
     client = minio_init()
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument('filename')

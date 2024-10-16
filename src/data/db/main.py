@@ -1,4 +1,5 @@
 import re
+from typing import Tuple
 
 from minio import Minio, S3Error
 import os
@@ -19,7 +20,7 @@ class MinioBucketWrapper:
         )
         self.bucket = bucket
 
-    def get_obj(self, obj: str, path: str = '.') -> str:
+    def get_obj_file(self, obj: str, path: str = '.') -> tuple[str, str]:
         try:
             res = self.client.get_object(self.bucket, obj)
 
@@ -27,16 +28,28 @@ class MinioBucketWrapper:
                 for data in res.stream(32 * 1024):
                     f.write(data)
 
-            print(f"{obj} downloaded!")
-            return obj
+            return obj, f"{obj} downloaded!"
 
         except S3Error as e:
             print(f"Error occurred: {e}")
 
-    def put_obj(self, name: str, path: str) -> None:
+    def get_obj_bytes(self, obj: str):
+        res = None
+        try:
+            res = self.client.get_object(self.bucket, obj)
+            return res
+
+        except S3Error as e:
+            print(f"Error occurred: {e}")
+
+        finally:
+            res.close()
+            res.release_conn()
+
+    def put_obj(self, name: str, path: str) -> str:
         try:
             self.client.fput_object(self.bucket, name, path)
-            print(f"{name} uploaded!")
+            return f"{name} uploaded!"
 
         except S3Error as e:
             print(f"Error occurred: {e}")
@@ -44,16 +57,15 @@ class MinioBucketWrapper:
     def list_obj(self) -> list[str]:
         return [o.object_name for o in self.client.list_objects(self.bucket, recursive=True)]
 
-    def del_obj(self, pattern: str) -> None:
+    def del_obj(self, pattern: str) -> str:
         try:
             objects = self.list_obj()
 
-            cnt = 0
             for obj in objects:
                 if re.match(pattern, obj):
                     self.client.remove_object(self.bucket, obj)
-                    cnt += 1
-            print(f"Deleted {cnt} objects!")
+
+            return f"{len(objects) - len(self.list_obj())} deleted objects!"
 
         except S3Error as e:
             print(f"Error occurred: {e}")
