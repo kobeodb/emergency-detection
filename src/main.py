@@ -92,7 +92,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('filename')
-    parser.add_argument('-w', '--weights')
+    parser.add_argument('weights')
 
     args = parser.parse_args()
 
