@@ -2,3 +2,4 @@
 out/temp/*
 .env
 src/data/weights/*
+/src/data/db/__pycache__
