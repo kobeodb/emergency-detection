@@ -50,3 +50,7 @@ The code will look for a filename in the minio bucket, download it locally, run 
 
 Since this project only focuses on human detection, I have narrowed the class detection list down to one to detect only people. When staying stationary, even the smallest YOLOv8 model seems to have good accuracy. When the person is moving however the accuracy drops.
 
+## Report 20/10/2024
+
+### Finetuning the model 
+
