@@ -1,4 +1,4 @@
-train: ../out/dataset/train/
-val: ../out/dataset/val
+train: ../data/dataset/train/
+val: ../data/dataset/val
 nc: 1
 names: ['person']

@@ -47,16 +47,16 @@ def minio_temp_file(func):
     return wrapper
 
 
-def use_model(weights: str) -> YOLO:
+def _use_model(weights: str) -> YOLO:
     if not weights or weights not in os.listdir(WEIGHTS_PATH):
-        weights = 'yolov8n.pt'
+        weights = 'yolo11n.pt'
 
-    return YOLO(WEIGHTS_PATH + weights)
+    return YOLO(WEIGHTS_PATH + weights).train(data=MODEL_PATH, epochs=100, imgsz=640)
 
 
 @minio_temp_file
 def detect(video: str, weights: str = WEIGHTS_PATH) -> None:
-    model = use_model(weights)
+    model = _use_model(weights)
     cap = cv2.VideoCapture(video)
 
     while True:
