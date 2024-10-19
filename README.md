@@ -13,7 +13,7 @@ Another type of device that ties into the function of the wearable health monito
 The tool we are most interested in is fine motion camera detection. These are cameras that make use of specialized software to detect patterns in human movement. These movements are analyzed by AI to detect health issues in patients, more specifically chronic diseases. 
 
 ### Our approach
-Our prototype will consist of a combination of attributes of the three tools discussed above. Each tool will play a role in improving the TTI. The prototype will consist of a camera being able to detect a person’s movement. Live camera feed will be fed into the algorithm to simulate a realistic situation. When the camera detects a certain movement pattern it will send a message to the medical intervention team. The camera will be able to detect and classify the severity of the movement, this allows us to regulate the priority of several cases at once. (All the requirements are written out in a requirements txt file located on our github )
+Our prototype will consist of a combination of attributes of the three tools discussed above. Each tool will play a role in improving the TTI. The prototype will consist of a camera being able to detect a person’s movement. Live camera feed will be fed into the algorithm to simulate a realistic situation. When the camera detects a certain movement pattern it will send a message to the medical intervention team. The camera will be able to detect and classify the severity of the movement, this allows us to regulate the priority of several cases at once. (All the requirements are written out in a requirements txt file located on our GitHub )
 
 ## Testing our system
 We will test our prototype by conducting controlled experiments where volunteers simulate various movement patterns combined with already existing video material that can be found online, including medical emergencies. The camera system will monitor these scenarios to evaluate its ability to detect and classify critical movements accurately. By analyzing the system's performance in these tests, we can refine our algorithms to improve detection accuracy and ensure the system effectively reduces the Time to React (TTR) and improves the overall Time to Intervention (TTI).
@@ -38,7 +38,7 @@ cd /src/data/weights
 tree /f
 ```
 
-Start the project by navigating to the source folder. Once inside, run the main file by supplying the file you want to detect objects on. You can also supply the weights you put in your weights directory. When no weights file is supplied, then the weights file is downloaded from yolo and defaults to yolo11.pt.
+Start the project by navigating to the source folder. Once inside, run the main file by supplying the file you want to detect objects on. You can also supply the weights you put in your weights' directory. When no weights file is supplied, then the weights file is downloaded from yolo and defaults to yolo11.pt.
 ```commandline
 cd src
 python main.py filename weights
@@ -52,5 +52,49 @@ Since this project only focuses on human detection, I have narrowed the class de
 
 ## Report 20/10/2024
 
-### Finetuning the model 
+### Fine-tuning the model 
+
+#### Identifying stationary, moving and falling people
+
+##### Falling people
+When detecting if an object (or in this case a person) has fallen, our first approach was looking at the correlation between the height and the width of the box surrounding the person. 
+We first decided to check if the width was greater than the height to conclude if the person had fallen over. Sadly, this was not a good approach, because there were many instances where a person 
+had not fallen over, but the width was still greater than the height (when a person first comes into frame for example). 
+```python
+"""
+ Approach 1.
+"""
+height = 2
+width = 1
+
+if width > height:
+    # is falling
+    pass
+else: 
+    # not falling
+    pass
+```
+\
+For our next approach we took a look at the aspect ratio of the width and height rather than comparing them head on. For a smaller aspect ratio, we determined that the person had fallen, but for a higher aspect ratio we determined that the person was either in movement or stationary (not falling).
+```python
+"""
+ Approach 2.
+"""
+height = 2
+width = 1
+
+if height / width < 1:
+    # is falling
+    pass
+else: 
+    # not falling
+    pass
+```
+
+##### Stationary & moving people 
+When looking at stationary people we decided to compare the distance of two centers of the boxes surrounding the person. We keep track of a single center point first for one frame. The next frame, we calculate the new center. We can compare these centers and check if the distance of these two boxes has shifted to some extent. 
+If the difference between the two distances is greater than a certain value then we can conclude that the person is in movement. If the differences between the distances are small then we can conclude that the person can be somewhat stationary. 
+
+##### Conclusion
+By combining these properties we can make several distinctions of classifications about the movement state of people. A person can be stationary or in movement. When a person is in movement they can either be falling or not falling.  
 
