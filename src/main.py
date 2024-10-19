@@ -85,6 +85,7 @@ def detect(video: str, weights: str) -> None:
         if not success:
             break
 
+        prev = None
         results = m(img, stream=True)
         for r in results:
             for box in r.boxes:
@@ -95,6 +96,24 @@ def detect(video: str, weights: str) -> None:
 
                     width = x2 - x1
                     height = y2 - y1
+                    center = (x1 + x2) / 2, (y1 + y2) / 2
+
+                    if prev is not None:
+                        d = ((center[0] - prev[0]) ** 2 + (center[1] - prev[1]) ** 2) ** 0.5
+
+                        if d <= 10:
+                            # stationary
+                            pass
+
+                        elif d > 10 and height / width > 1:
+                            # in movement
+                            pass
+
+                        elif d > 10 and height / width < 1:
+                            # falling
+                            pass
+
+                    prev = center
 
                     out = f'{_id}: {math.ceil((box.conf[0] * 100))}%'
 
@@ -103,8 +122,7 @@ def detect(video: str, weights: str) -> None:
                                 FONT_SCALE, FONT_COLOR, FONT_THICKNESS)
                     cv2.rectangle(img, (x1, y1), (x2, y2), FONT_COLOR, 3)
 
-                    if width >= height:
-                        pass
+            os.system('cls')
 
         cv2.imshow(video, img)
         if cv2.waitKey(1) == ord('q'):
