@@ -12,6 +12,8 @@ from data.db.main import MinioBucketWrapper
 DATASET_PATH = '../out/temp/'
 WEIGHTS_PATH = './data/weights/'
 MODEL_PATH = './data/data.yaml'
+TRAIN_PATH = './data/dataset/train'
+VAL_PATH = './data/dataset/val'
 
 FONT_SCALE = 1
 FONT_COLOR = (255, 255, 255)
@@ -34,7 +36,7 @@ def minio_init() -> MinioBucketWrapper:
     )
 
 
-def minio_temp_file(func):
+def minio_temp_val(func):
     @functools.wraps(func)
     def wrapper(c: MinioBucketWrapper, filename: str, *args, **kwargs):
         f, _ = c.get_obj_file(filename, DATASET_PATH)
@@ -47,16 +49,35 @@ def minio_temp_file(func):
     return wrapper
 
 
+def minio_temp_train(func):
+    @functools.wraps(func)
+    def wrapper(c: MinioBucketWrapper, weights: str, amt: int = 10, *args, **kwargs):
+        if not os.listdir(TRAIN_PATH):
+            for obj in c.list_obj()[:amt]:
+                c.get_obj_file(obj, TRAIN_PATH)
+
+        func(weights, *args, **kwargs)
+
+    return wrapper
+
+
 def _use_model(weights: str) -> YOLO:
     if not weights or weights not in os.listdir(WEIGHTS_PATH):
         weights = 'yolo11n.pt'
+    else:
+        weights = WEIGHTS_PATH + weights
 
-    return YOLO(WEIGHTS_PATH + weights).train(data=MODEL_PATH, epochs=100, imgsz=640)
+    return YOLO(weights)
 
 
-@minio_temp_file
-def detect(video: str, weights: str = WEIGHTS_PATH) -> None:
-    model = _use_model(weights)
+@minio_temp_train
+def _train_model(weights: str):
+    return _use_model(weights).train(data=MODEL_PATH)
+
+
+@minio_temp_val
+def detect(video: str, weights: str) -> None:
+    m = _use_model(weights)
     cap = cv2.VideoCapture(video)
 
     while True:
@@ -64,7 +85,7 @@ def detect(video: str, weights: str = WEIGHTS_PATH) -> None:
         if not success:
             break
 
-        results = model(img, stream=True)
+        results = m(img, stream=True)
         for r in results:
             for box in r.boxes:
                 _id = int(box.cls[0])
@@ -72,12 +93,18 @@ def detect(video: str, weights: str = WEIGHTS_PATH) -> None:
                 if _id == 0:
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
 
+                    width = x2 - x1
+                    height = y2 - y1
+
                     out = f'{_id}: {math.ceil((box.conf[0] * 100))}%'
 
                     cv2.putText(img, out, [x1, y1],
                                 cv2.FONT_HERSHEY_SIMPLEX,
                                 FONT_SCALE, FONT_COLOR, FONT_THICKNESS)
                     cv2.rectangle(img, (x1, y1), (x2, y2), FONT_COLOR, 3)
+
+                    if width >= height:
+                        pass
 
         cv2.imshow(video, img)
         if cv2.waitKey(1) == ord('q'):
@@ -89,11 +116,13 @@ def detect(video: str, weights: str = WEIGHTS_PATH) -> None:
 
 if __name__ == '__main__':
     client = minio_init()
-    parser = argparse.ArgumentParser()
 
+    parser = argparse.ArgumentParser()
     parser.add_argument('filename')
-    parser.add_argument('weights')
+    parser.add_argument('-w', '--weights')
 
     args = parser.parse_args()
+
+    # model = _train_model(client, weights='yolo11n.pt', amt=10)
 
     detect(client, args.filename, args.weights)
