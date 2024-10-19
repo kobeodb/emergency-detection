@@ -38,7 +38,7 @@ cd /src/data/weights
 tree /f
 ```
 
-Start the project by navigating to the source folder. Once inside, run the main file by supplying the file you want to detect objects on. You can also supply the weights you put in your weights directory.
+Start the project by navigating to the source folder. Once inside, run the main file by supplying the file you want to detect objects on. You can also supply the weights you put in your weights directory. When no weights file is supplied, then the weights file is downloaded from yolo and defaults to yolo11.pt.
 ```commandline
 cd src
 python main.py filename weights
@@ -48,7 +48,7 @@ The code will look for a filename in the minio bucket, download it locally, run 
 
 ### Results 
 
-Since this project only focuses on human detection, I have narrowed the class detection list down to one to detect only people. When staying stationary, even the smallest YOLOv8 model seems to have good accuracy. When the person is moving however the accuracy drops.
+Since this project only focuses on human detection, I have narrowed the class detection list down to one to detect only people. When staying stationary, even the smallest YOLOv11 model seems to have good accuracy. When the person is moving however the accuracy drops. In some cases the detection stops working entirely for a few moments, but picks back up a while later.
 
 ## Report 20/10/2024
 

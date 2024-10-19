@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import re
-from typing import Tuple
+from http.client import HTTPResponse
+from typing import Tuple, Iterator, Generator
 
 from minio import Minio, S3Error
 import os
@@ -33,11 +36,11 @@ class MinioBucketWrapper:
         except S3Error as e:
             print(f"Error occurred: {e}")
 
-    def get_obj_bytes(self, obj: str):
+    def get_obj_bytes(self, obj: str) -> Iterator[bytes]:
         res = None
         try:
             res = self.client.get_object(self.bucket, obj)
-            return res
+            return res.stream()
 
         except S3Error as e:
             print(f"Error occurred: {e}")
