@@ -1,5 +1,4 @@
 .idea
-out/temp/*
 runs/
 .env
 src/data/weights/*
