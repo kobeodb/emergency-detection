@@ -27,6 +27,16 @@ def minio_init() -> MinioBucketWrapper:
     minio_password = os.getenv("MINIO_PASSWORD")
     minio_bucket_name = os.getenv("MINIO_BUCKET_NAME")
 
+    if not all([minio_url, minio_user, minio_password, minio_bucket_name]):
+        with open(".env", "w") as env_file:
+            env_file.write(f"MINIO_URL=\n")
+            env_file.write(f"MINIO_USER=\n")
+            env_file.write(f"MINIO_PASSWORD=\n")
+            env_file.write(f"MINIO_BUCKET_NAME=\n")
+
+        print("Missing environment variables. A new .env file has been created with placeholders.")
+        raise EnvironmentError("Please set the required environment variables in the .env file.")
+
     return MinioBucketWrapper(
         minio_url,
         minio_user,
