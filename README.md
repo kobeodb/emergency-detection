@@ -38,7 +38,7 @@ cd /src/data/weights
 tree /f
 ```
 
-Start the project by navigating to the source folder. Once inside, run the main file by supplying the file you want to detect objects on. You can also supply the weights you put in your weights' directory. When no weights file is supplied, then the weights file is downloaded from yolo and defaults to yolo11.pt.
+You can run the `run.py` file by supplying the file you want to detect objects on. You can also supply the weights you put in your `weights` directory. When no weights file is supplied, then the weights file is downloaded from yolo and defaults to `yolo11.pt`.
 ```commandline
 # python run.py video_1.avi -w yolo11n.pt 
 python run.py filename weights
