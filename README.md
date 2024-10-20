@@ -38,10 +38,10 @@ cd /src/data/weights
 tree /f
 ```
 
-You can run the `run.py` file by supplying the file you want to detect objects on. You can also supply the weights you put in your `weights` directory. When no weights file is supplied, then the weights file is downloaded from yolo and defaults to `yolo11.pt`.
+You can run the `bb` command by supplying the file you want to detect objects on. You can also supply the weights you put in your `weights` directory. When no weights file is supplied, then the weights file is downloaded from yolo and defaults to `yolo11.pt`.
 ```commandline
-# python run.py video_1.avi -w yolo11n.pt 
-python run.py filename weights
+pip install -e .
+bb video_1.avi -w yolo11n.pt 
 ```
 
 The code will look for a filename in the minio bucket, download it locally, run detection on it and then clean it up by deleting it (locally). The temporary files are kept in `out/temp` directory.
