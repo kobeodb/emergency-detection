@@ -98,3 +98,9 @@ If the difference between the two distances is greater than a certain value then
 ##### Conclusion
 By combining these properties we can make several distinctions of classifications about the movement state of people. A person can be stationary or in movement. When a person is in movement they can either be falling or not falling.  
 
+##### Dataset
+We found a dataset consisting of roughly 170 videos of people falling. The videos are recorded in different settings. Only the videos of one room which are in total 27 videos are on minio to start with because that's enough for now. Later we can add more videos if needed.
+Reference of the dataset: 
+```
+I. Charfi, J. Mitéran, J. Dubois, M. Atri, R. Tourki, "Optimised spatio-temporal descriptors for real-time fall detection: comparison of SVM and Adaboost based classification”, Journal of Electronic Imaging (JEI), Vol.22. Issue.4, pp.17, October 2013.
+```
