@@ -49,11 +49,12 @@ def minio_temp_val(func):
     @functools.wraps(func)
     def wrapper(c: MinioBucketWrapper, filename: str, *args, **kwargs):
         f, _ = c.get_obj_file(filename, DATASET_PATH)
+        nf = f.split('/')[-1]
 
-        func(DATASET_PATH + f, *args, **kwargs)
+        func(DATASET_PATH + nf, *args, **kwargs)
 
-        if os.path.exists(DATASET_PATH + f):
-            os.remove(DATASET_PATH + f)
+        if os.path.exists(DATASET_PATH + nf):
+            os.remove(DATASET_PATH + nf)
 
     return wrapper
 
@@ -91,7 +92,7 @@ def _train_model(weights: str):
 @minio_temp_val
 def detect(video: str, weights: str) -> None:
     m = _use_model(weights)
-    cap = cv2.VideoCapture(DATASET_PATH + video.split('/')[-1])
+    cap = cv2.VideoCapture(video)
 
     while True:
         success, img = cap.read()
