@@ -106,4 +106,4 @@ I. Charfi, J. Mitéran, J. Dubois, M. Atri, R. Tourki, "Optimised spatio-tempora
 ```
 
 ### User interface
-We have also started working on an user interface. This could help us for testing and it is a beginning of working towards an user friendly application too for our MVP. For the moment, it is only for inputting fields to our code but we are working towards an application that can showcase the tracking of people and info in realtime when choosing a video.
+We have also started working on an user interface. This could help us for testing and it is a beginning of working towards an user friendly application too for our MVP. For the moment, it is only for inputting fields to our code but we are working towards an application that can showcase the tracking of people and info in realtime when choosing a video. The code is currently just in a branch: main/tkinter.
