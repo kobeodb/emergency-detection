@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import argparse
 import functools
 import os
 import math
@@ -7,13 +6,13 @@ import dotenv
 import cv2
 from ultralytics import YOLO
 
-from data.db.main import MinioBucketWrapper
+from src.data.db.main import MinioBucketWrapper
 
-DATASET_PATH = '../out/temp/'
-WEIGHTS_PATH = './data/weights/'
-MODEL_PATH = './data/data.yaml'
-TRAIN_PATH = './data/dataset/train'
-VAL_PATH = './data/dataset/val'
+DATASET_PATH = './out/temp/'
+WEIGHTS_PATH = './src/data/weights/'
+MODEL_PATH = './src/data/data.yaml'
+TRAIN_PATH = './src/data/dataset/train'
+VAL_PATH = './src/data/dataset/val'
 
 FONT_SCALE = 1
 FONT_COLOR = (255, 255, 255)
@@ -57,6 +56,10 @@ def minio_temp_train(func):
                 c.get_obj_file(obj, TRAIN_PATH)
 
         func(weights, *args, **kwargs)
+
+        if os.path.exists(TRAIN_PATH):
+            for f in os.listdir(TRAIN_PATH):
+                os.remove(f)
 
     return wrapper
 
@@ -130,17 +133,3 @@ def detect(video: str, weights: str) -> None:
 
     cap.release()
     cv2.destroyAllWindows()
-
-
-if __name__ == '__main__':
-    client = minio_init()
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('filename')
-    parser.add_argument('-w', '--weights')
-
-    args = parser.parse_args()
-
-    # model = _train_model(client, weights='yolo11n.pt', amt=10)
-
-    detect(client, args.filename, args.weights)

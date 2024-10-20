@@ -1,1 +1,1 @@
-from data.db.main import MinioBucketWrapper
+from src.data.db.main import MinioBucketWrapper
