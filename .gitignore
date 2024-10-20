@@ -5,3 +5,4 @@ runs/
 /src/__pycache__
 /bot_brigade.egg-info
 *.pt
+*.avi
