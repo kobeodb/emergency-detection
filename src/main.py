@@ -91,10 +91,11 @@ def _train_model(weights: str):
 @minio_temp_val
 def detect(video: str, weights: str) -> None:
     m = _use_model(weights)
-    cap = cv2.VideoCapture(video)
+    cap = cv2.VideoCapture(DATASET_PATH + video.split('/')[-1])
 
     while True:
         success, img = cap.read()
+
         if not success:
             break
 
@@ -128,7 +129,7 @@ def detect(video: str, weights: str) -> None:
 
                     prev = center
 
-                    out = f'{_id}: {math.ceil((box.conf[0] * 100))}%'
+                    out = f'id {_id}: {math.ceil((box.conf[0] * 100))}%'
 
                     cv2.putText(img, out, [x1, y1],
                                 cv2.FONT_HERSHEY_SIMPLEX,

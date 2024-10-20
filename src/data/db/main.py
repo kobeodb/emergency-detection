@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import re
-from http.client import HTTPResponse
-from typing import Tuple, Iterator, Generator
+from typing import Iterator
 
 from minio import Minio, S3Error
 import os
@@ -27,7 +26,7 @@ class MinioBucketWrapper:
         try:
             res = self.client.get_object(self.bucket, obj)
 
-            with open(os.path.join(path, obj), 'wb') as f:
+            with open(os.path.join(path, obj.split('/')[-1]), 'wb') as f:
                 for data in res.stream(32 * 1024):
                     f.write(data)
 
