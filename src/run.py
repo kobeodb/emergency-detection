@@ -3,7 +3,7 @@ import argparse
 from src.main import minio_init, detect
 
 
-if __name__ == '__main__':
+def main():
     client = minio_init()
 
     parser = argparse.ArgumentParser()
@@ -15,3 +15,7 @@ if __name__ == '__main__':
     # model = _train_model(client, weights='yolo11n.pt', amt=10)
 
     detect(client, args.filename, args.weights)
+
+
+if __name__ == '__main__':
+    main()
