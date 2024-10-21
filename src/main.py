@@ -2,17 +2,19 @@
 import functools
 import os
 import math
+from typing import Callable
+
 import dotenv
 import cv2
 from ultralytics import YOLO
 
 from src.data.db.main import MinioBucketWrapper
 
-DATASET_PATH = './out/temp/'
-WEIGHTS_PATH = './src/data/weights/'
-MODEL_PATH = './src/data/data.yaml'
-TRAIN_PATH = './src/data/dataset/train'
-VAL_PATH = './src/data/dataset/val'
+DATASET_PATH = '../out/temp/'
+WEIGHTS_PATH = './data/weights/'
+MODEL_PATH = './data/data.yaml'
+TRAIN_PATH = './data/dataset/train'
+VAL_PATH = './data/dataset/val'
 
 FONT_SCALE = 1
 FONT_COLOR = (255, 255, 255)
@@ -90,9 +92,11 @@ def _train_model(weights: str):
 
 
 @minio_temp_val
-def detect(video: str, weights: str) -> None:
+def detect(video: str, weights: str, callback: Callable) -> None:
     m = _use_model(weights)
     cap = cv2.VideoCapture(video)
+
+    prev = None
 
     while True:
         success, img = cap.read()
@@ -100,7 +104,6 @@ def detect(video: str, weights: str) -> None:
         if not success:
             break
 
-        prev = None
         results = m(img, stream=True)
         for r in results:
             for box in r.boxes:
@@ -121,7 +124,7 @@ def detect(video: str, weights: str) -> None:
                             pass
 
                         elif d > 10 and height / width > 1:
-                            # in movement
+                            # moving
                             pass
 
                         elif d > 10 and height / width < 1:
@@ -131,17 +134,10 @@ def detect(video: str, weights: str) -> None:
                     prev = center
 
                     out = f'id {_id}: {math.ceil((box.conf[0] * 100))}%'
-
-                    cv2.putText(img, out, [x1, y1],
-                                cv2.FONT_HERSHEY_SIMPLEX,
+                    cv2.putText(img, out, [x1, y1], cv2.FONT_HERSHEY_SIMPLEX,
                                 FONT_SCALE, FONT_COLOR, FONT_THICKNESS)
                     cv2.rectangle(img, (x1, y1), (x2, y2), FONT_COLOR, 3)
 
-            os.system('cls')
-
-        cv2.imshow(video, img)
-        if cv2.waitKey(1) == ord('q'):
-            break
+        callback(img)
 
     cap.release()
-    cv2.destroyAllWindows()
