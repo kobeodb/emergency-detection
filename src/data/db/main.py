@@ -3,17 +3,30 @@ from __future__ import annotations
 import re
 from typing import Iterator
 
+import dotenv
 from minio import Minio, S3Error
 import os
 
 
 class MinioBucketWrapper:
-    def __init__(
-            self, url: str,
-            access_key: str,
-            secret_key: str,
-            bucket: str
-    ) -> None:
+    def __init__(self) -> None:
+        dotenv.load_dotenv()
+
+        url = os.getenv("MINIO_URL")
+        access_key = os.getenv("MINIO_USER")
+        secret_key = os.getenv("MINIO_PASSWORD")
+        bucket = os.getenv("MINIO_BUCKET_NAME")
+
+        if not all([url, access_key, secret_key, bucket]):
+            with open("../.env", "w") as env_file:
+                env_file.write(f"MINIO_URL=\n")
+                env_file.write(f"MINIO_USER=\n")
+                env_file.write(f"MINIO_PASSWORD=\n")
+                env_file.write(f"MINIO_BUCKET_NAME=\n")
+
+            print("Missing environment variables. A new .env file has been created with placeholders.")
+            raise EnvironmentError("Please set the required environment variables in the .env file.")
+
         self.client = Minio(
             url,
             access_key=access_key,
@@ -22,7 +35,7 @@ class MinioBucketWrapper:
         )
         self.bucket = bucket
 
-    def get_obj_file(self, obj: str, path: str = '.') -> tuple[str, str]:
+    def get_obj_file(self, obj: str, path: str) -> tuple[str, str]:
         try:
             res = self.client.get_object(self.bucket, obj)
 

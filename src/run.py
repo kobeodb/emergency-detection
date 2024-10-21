@@ -1,15 +1,14 @@
-import argparse
 from tkinter import Tk
 
 from src.app import App
-from src.main import minio_init, detect
+from src.data.db.main import MinioBucketWrapper
 
 
 def main():
-    client = minio_init()
+    client = MinioBucketWrapper()
 
     win = Tk()
-    win.geometry("500x500")
+    win.geometry("480x480")
     App(win, client)
 
     win.mainloop()

@@ -9,42 +9,11 @@ import cv2
 from ultralytics import YOLO
 
 from src.data.db.main import MinioBucketWrapper
-
-DATASET_PATH = '../out/temp/'
-WEIGHTS_PATH = './data/weights/'
-MODEL_PATH = './data/data.yaml'
-TRAIN_PATH = './data/dataset/train'
-VAL_PATH = './data/dataset/val'
+from path import *
 
 FONT_SCALE = 1
 FONT_COLOR = (255, 255, 255)
 FONT_THICKNESS = 2
-
-
-def minio_init() -> MinioBucketWrapper:
-    dotenv.load_dotenv()
-
-    minio_url = os.getenv("MINIO_URL")
-    minio_user = os.getenv("MINIO_USER")
-    minio_password = os.getenv("MINIO_PASSWORD")
-    minio_bucket_name = os.getenv("MINIO_BUCKET_NAME")
-
-    if not all([minio_url, minio_user, minio_password, minio_bucket_name]):
-        with open(".env", "w") as env_file:
-            env_file.write(f"MINIO_URL=\n")
-            env_file.write(f"MINIO_USER=\n")
-            env_file.write(f"MINIO_PASSWORD=\n")
-            env_file.write(f"MINIO_BUCKET_NAME=\n")
-
-        print("Missing environment variables. A new .env file has been created with placeholders.")
-        raise EnvironmentError("Please set the required environment variables in the .env file.")
-
-    return MinioBucketWrapper(
-        minio_url,
-        minio_user,
-        minio_password,
-        minio_bucket_name
-    )
 
 
 def minio_temp_val(func):
@@ -77,13 +46,8 @@ def minio_temp_train(func):
     return wrapper
 
 
-def _use_model(weights: str) -> YOLO:
-    if not weights or weights not in os.listdir(WEIGHTS_PATH):
-        weights = 'yolo11n.pt'
-    else:
-        weights = WEIGHTS_PATH + weights
-
-    return YOLO(weights)
+def _use_model(path: str) -> YOLO:
+    return YOLO(path)
 
 
 @minio_temp_train
