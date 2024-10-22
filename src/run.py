@@ -8,7 +8,6 @@ def main():
     client = MinioBucketWrapper()
 
     win = Tk()
-    win.geometry("480x480")
     App(win, client)
 
     win.mainloop()

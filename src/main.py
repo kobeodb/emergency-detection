@@ -1,19 +1,18 @@
-#!/usr/bin/env python3
 import functools
-import os
 import math
+import os
+import threading
 from typing import Callable
 
-import dotenv
 import cv2
 from ultralytics import YOLO
 
-from src.data.db.main import MinioBucketWrapper
 from path import *
+from src.data.db.main import MinioBucketWrapper
 
-FONT_SCALE = 1
-FONT_COLOR = (255, 255, 255)
-FONT_THICKNESS = 2
+FONT_SCALE = 0.5
+FONT_COLOR = (0, 0, 255)
+FONT_THICKNESS = 1
 
 
 def minio_temp_val(func):
@@ -46,23 +45,26 @@ def minio_temp_train(func):
     return wrapper
 
 
-def _use_model(path: str) -> YOLO:
+def _val_model(path: str) -> YOLO:
     return YOLO(path)
 
 
 @minio_temp_train
-def _train_model(weights: str):
-    return _use_model(weights).train(data=MODEL_PATH)
+def _train_model(path: str) -> YOLO:
+    return YOLO(path).train(data=MODEL_PATH)
 
 
 @minio_temp_val
-def detect(video: str, weights: str, callback: Callable) -> None:
-    m = _use_model(weights)
+def detect(video: str, weights: str, callback: Callable, stop: threading.Event) -> None:
+    m = _val_model(weights)
     cap = cv2.VideoCapture(video)
 
     prev = None
 
     while True:
+        if stop.is_set():
+            break
+
         success, img = cap.read()
 
         if not success:
@@ -98,10 +100,11 @@ def detect(video: str, weights: str, callback: Callable) -> None:
                     prev = center
 
                     out = f'id {_id}: {math.ceil((box.conf[0] * 100))}%'
-                    cv2.putText(img, out, [x1, y1], cv2.FONT_HERSHEY_SIMPLEX,
+                    cv2.putText(img, out, [x1, y1-5], cv2.FONT_HERSHEY_SIMPLEX,
                                 FONT_SCALE, FONT_COLOR, FONT_THICKNESS)
-                    cv2.rectangle(img, (x1, y1), (x2, y2), FONT_COLOR, 3)
+                    cv2.rectangle(img, (x1, y1), (x2, y2), FONT_COLOR, 1)
 
         callback(img)
 
     cap.release()
+    cv2.destroyAllWindows()
