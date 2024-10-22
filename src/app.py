@@ -1,10 +1,11 @@
 import os
 import threading
-from tkinter import Label, StringVar, OptionMenu, Button, messagebox, filedialog
 import tkinter as tk
+from tkinter import Label, StringVar, OptionMenu, Button, messagebox, filedialog
 
 import cv2
 from PIL import ImageTk, Image
+
 from src.main import detect
 
 
@@ -15,42 +16,47 @@ class App:
 
         self.master.title("Bot Brigade")
 
-        self.label = Label(master, text="Min.io catalog")
-        self.label.pack()
+        self.left_frame = tk.Frame(self.master)
+        self.left_frame.grid(row=0, column=0, padx=10, pady=10, sticky="n")
 
-        self.navigate_frame = tk.Frame(self.master)
-        self.navigate_frame.pack(pady=5)
+        self.right_frame = tk.Frame(self.master)
+        self.right_frame.grid(row=0, column=1, padx=10, pady=10, sticky="n")
 
         self.available_videos = self.get_available_videos()
 
-        self.video_path = StringVar(master)
-        if self.available_videos:
-            self.video_path.set(self.available_videos[0])
-        else:
-            self.video_path.set("No videos available")
+        self.video_paths = {os.path.basename(video): video for video in self.available_videos}
 
-        self.video_dropdown = OptionMenu(self.navigate_frame, self.video_path, *self.available_videos)
-        self.video_dropdown.pack(side=tk.LEFT)
+        self.selected_video_name = StringVar(master)
+
+        if self.available_videos:
+            self.selected_video_name.set(list(self.video_paths.keys())[0])
+        else:
+            self.selected_video_name.set("No videos available")
+
+        self.video_dropdown_label = OptionMenu(self.left_frame, self.selected_video_name, *sorted(self.video_paths.keys()))
+        self.video_dropdown_label.grid(row=0, column=0, pady=5, padx=5, sticky="w")
 
         self.weight_button_text = StringVar()
         self.weight_button_text.set("Weights")
 
-        self.weight_browse_button = Button(self.navigate_frame, textvariable=self.weight_button_text, command=self.browse_weight_file)
-        self.weight_browse_button.pack(side=tk.LEFT)
+        self.weight_browse_button = Button(self.left_frame, textvariable=self.weight_button_text, command=self.browse_weight_file)
+        self.weight_browse_button.grid(row=1, column=0, pady=5, padx=5, sticky="w")
 
-        self.button_frame = tk.Frame(master)
-        self.button_frame.pack(pady=5)
+        self.start_button = Button(self.left_frame, text="Detect", command=self.start_detection)
+        self.start_button.grid(row=2, column=0, pady=5, padx=5, sticky="w")
 
-        self.start_button = Button(self.button_frame, text="Start", command=self.start_detection)
-        self.start_button.pack(side=tk.LEFT, padx=5)
+        self.stop_button = Button(self.left_frame, text="Stop", command=self.stop_detection)
+        self.stop_button.grid(row=2, column=1, pady=5, padx=5, sticky="w")
 
-        self.quit_button = Button(self.button_frame, text="Quit", command=master.quit)
-        self.quit_button.pack(side=tk.LEFT, padx=5)
-
-        self.video_label = Label(master)
-        self.video_label.pack()
+        self.video_label = Label(self.right_frame)
+        self.video_label.grid(row=0, column=0)
 
         self.img_tk = None
+        self.weight_path = None
+        self.video_path = None
+
+        self.stop = threading.Event()
+        self.master.protocol("WM_DELETE_WINDOW", self.cleanup)
 
     def get_available_videos(self):
         try:
@@ -62,29 +68,40 @@ class App:
             messagebox.showerror("Error", f"Could not fetch video files from MinIO: {str(e)}")
             return []
 
-    def browse_video_file(self):
-        video_file = filedialog.askopenfilename(filetypes=[("Video files", "*.mp4 *.avi")])
-        if video_file:
-            self.video_path.set(video_file)
-
     def browse_weight_file(self):
-        weight_file = filedialog.askopenfilename(filetypes=[("YOLO Model files", "*.pt")])
+        weight_file = filedialog.askopenfilename(filetypes=[("Weight files", "*.pt")])
         if weight_file:
             self.weight_button_text.set(os.path.basename(weight_file))
+            self.weight_path = weight_file
 
     def start_detection(self):
-        video = self.video_path.get()
-        weight = self.weight_button_text.get()
+        self.video_path = self.video_paths[self.selected_video_name.get()]
 
-        if video == "No videos available" and not os.path.isfile(video):
+        if not self.video_path:
             messagebox.showerror("Error", "No valid video file selected.")
             return
 
+        if not self.weight_path:
+            messagebox.showerror("Error", "No valid weight file selected.")
+            return
+
+        self.stop.clear()
         try:
-            threading.Thread(target=detect, args=(self.client, video, weight, self.update)).start()
+            threading.Thread(target=detect, args=(
+                self.client,
+                self.video_path,
+                self.weight_path,
+                self.update,
+                self.stop)
+            ).start()
 
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred during detection: {str(e)}")
+
+    def stop_detection(self):
+        self.stop.set()
+        self.video_label.configure(image='')
+        self.video_label.imgtk = None
 
     def update(self, img):
         cv2img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -96,3 +113,7 @@ class App:
     def _update_image(self, imgtk):
         self.video_label.imgtk = imgtk
         self.video_label.configure(image=imgtk)
+
+    def cleanup(self):
+        self.stop_detection()
+        self.master.destroy()
