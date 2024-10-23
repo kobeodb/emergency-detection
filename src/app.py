@@ -16,11 +16,11 @@ class App:
 
         self.master.title("Bot Brigade")
 
-        self.left_frame = tk.Frame(self.master)
-        self.left_frame.grid(row=0, column=0, padx=10, pady=10, sticky="n")
+        self.top_row = tk.Frame(self.master)
+        self.top_row.grid(row=0, column=0, padx=10, pady=5, sticky="w")
 
-        self.right_frame = tk.Frame(self.master)
-        self.right_frame.grid(row=0, column=1, padx=10, pady=10, sticky="n")
+        self.bot_row = tk.Frame(self.master)
+        self.bot_row.grid(row=1, column=0, padx=15, pady=5, sticky="n")
 
         self.available_videos = self.get_available_videos()
 
@@ -33,23 +33,29 @@ class App:
         else:
             self.selected_video_name.set("No videos available")
 
-        self.video_dropdown_label = OptionMenu(self.left_frame, self.selected_video_name, *sorted(self.video_paths.keys()))
-        self.video_dropdown_label.grid(row=0, column=0, pady=5, padx=5, sticky="w")
+        self.video_dropdown_label = OptionMenu(self.top_row, self.selected_video_name, *sorted(self.video_paths.keys()))
+        self.video_dropdown_label.grid(row=0, column=0, padx=5, sticky="w")
 
         self.weight_button_text = StringVar()
         self.weight_button_text.set("Weights")
 
-        self.weight_browse_button = Button(self.left_frame, textvariable=self.weight_button_text, command=self.browse_weight_file)
-        self.weight_browse_button.grid(row=1, column=0, pady=5, padx=5, sticky="w")
+        self.weight_browse_button = Button(self.top_row, textvariable=self.weight_button_text, command=self.browse_weight_file)
+        self.weight_browse_button.grid(row=0, column=1, padx=5, sticky="w")
 
-        self.start_button = Button(self.left_frame, text="Detect", command=self.start_detection)
-        self.start_button.grid(row=2, column=0, pady=5, padx=5, sticky="w")
+        self.start_button = Button(self.top_row, text="Detect", command=self.start_detection)
+        self.start_button.grid(row=0, column=2, padx=5, sticky="w")
 
-        self.stop_button = Button(self.left_frame, text="Stop", command=self.stop_detection)
-        self.stop_button.grid(row=2, column=1, pady=5, padx=5, sticky="w")
+        self.stop_button = Button(self.top_row, text="Stop", command=self.stop_detection)
+        self.stop_button.grid(row=0, column=3, padx=5, sticky="w")
 
-        self.video_label = Label(self.right_frame)
+        self.video_frame_width = 640
+        self.video_frame_height = 480
+
+        self.video_label = Label(self.bot_row, relief=tk.SUNKEN)
         self.video_label.grid(row=0, column=0)
+
+        self.video_frame = tk.Frame(self.video_label, width=self.video_frame_width, height=self.video_frame_height)
+        self.video_frame.grid(row=0, column=0)
 
         self.img_tk = None
         self.weight_path = None
@@ -104,11 +110,24 @@ class App:
         self.video_label.imgtk = None
 
     def update(self, img):
+        # Resize image to fit in the predefined box
+        img = self.resize_image_to_fit_box(img)
+
         cv2img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(cv2img)
         imgtk = ImageTk.PhotoImage(image=img)
 
         self.master.after(0, self._update_image, imgtk)
+
+    def resize_image_to_fit_box(self, img):
+        h, w = img.shape[:2]
+
+        scale = min(self.video_frame_width / w, self.video_frame_height / h)
+
+        new_width = int(w * scale)
+        new_height = int(h * scale)
+
+        return cv2.resize(img, (new_width, new_height))
 
     def _update_image(self, imgtk):
         self.video_label.imgtk = imgtk
