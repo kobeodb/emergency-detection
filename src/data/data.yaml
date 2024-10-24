@@ -1,4 +1,4 @@
 train: ../data/dataset/train/
 val: ../data/dataset/val
-nc: 1
-names: ['person']
+nc: 3
+names: ['standing', 'notfall', 'fall']
