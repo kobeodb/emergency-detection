@@ -92,8 +92,3 @@ class BotBrigadeApp:
         """Stop the detection process."""
         self.stop_event.set()
 
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = BotBrigadeApp(root)
-    root.mainloop()
