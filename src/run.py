@@ -1,17 +1,11 @@
 from tkinter import Tk
-
-from src.app import App
-from src.data.db.main import MinioBucketWrapper
-
+from src.app import BotBrigadeApp
 
 def main():
-    client = MinioBucketWrapper()
-
-    win = Tk()
-    App(win, client)
-
-    win.mainloop()
-
+    root = Tk()
+    app = BotBrigadeApp(root)
+    root.protocol("WM_DELETE_WINDOW", app.stop_detection)
+    root.mainloop()
 
 if __name__ == '__main__':
     main()
