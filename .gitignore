@@ -1,5 +1,4 @@
 .idea
-runs/
 /src/data/dataset/*
 .env
 /src/data/db/__pycache__
