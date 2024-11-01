@@ -11,7 +11,7 @@ from ultralytics import YOLO
 FONT_SCALE = 0.5
 FONT_COLOR = (0, 0, 255)
 FONT_THICKNESS = 1
-CLASSES = ['standing', 'notfall', 'fall']
+CLASSES = ['fall', 'notfall', 'standing']
 TRAIN_EPOCHS = 1
 IMG_SIZE = 640
 
@@ -58,21 +58,3 @@ def train_model(weights: str, data_yaml: str, epochs: int = TRAIN_EPOCHS, img_si
     model = initialize_model(weights)
     model.train(data=data_yaml, epochs=epochs, imgsz=img_size)
 
-
-if __name__ == "__main__":
-    # Example usage:
-    stop_event = threading.Event()
-    video_path = "../local/vids/sample_video.mp4"
-    weights_path = "yolov8n.pt"
-    data_yaml_path = "data.yaml"
-
-    # Detect function usage example
-    def display_callback(frame):
-        cv2.imshow("Detection", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            stop_event.set()
-
-    detect(video_path, weights_path, display_callback, stop_event)
-
-    # Training function usage example
-    train_model(weights_path, data_yaml_path)
