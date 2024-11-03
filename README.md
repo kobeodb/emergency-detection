@@ -216,3 +216,7 @@ We have also started working on an user interface. This could help us for testin
 * Located in ../src/models/ directory.
 * The application script is fall_detection_app.py located in ../src/app/ directory.
 
+
+### Accuracy
+![Alt text](Screenshots/Screenshot%202024-11-04%20at%2000.09.53.png?raw=true "Optional Title")
+As of right now with the model we created we got an Accuracy of 82%. This is likely due to the lack of training data. We are currently labeling some new datasets, but in these datasets there are multiple labels per image. As of right now or model doesn't work with multi-labeled data. So to solve this solution we are gonna switch to openpose. With these changes and new data, we are hoping to increase the accuracy of our model. The usage of openpose would already be implemented if it wasn't for the headache of installing openpose on macOS.
