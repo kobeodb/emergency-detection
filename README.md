@@ -107,3 +107,112 @@ I. Charfi, J. Mitéran, J. Dubois, M. Atri, R. Tourki, "Optimised spatio-tempora
 
 ### User interface
 We have also started working on an user interface. This could help us for testing and it is a beginning of working towards an user friendly application too for our MVP. For the moment, it is only for inputting fields to our code but we are working towards an application that can showcase the tracking of people and info in realtime when choosing a video. The code is currently just in a branch: main/tkinter.
+
+
+## Report 3/11/2024
+
+
+### Overview
+
+* Machine learning model for fall detection using pose keypoints data.
+* Built with an XGBoost classifier and an advanced preprocessing pipeline.
+* Uses MediaPipe Pose estimation for keypoint extraction.
+* Binary classification: "Need help" vs. "No need for help".
+
+
+### Data Processing
+
+#### MediaPipe Pose for Keypoint Extraction
+
+* 33 body landmarks extracted (x, y, z coordinates).
+* Processes images from train/val directories.
+* Automatic handling of missing/invalid poses.
+
+#### Dataset Creation Pipeline
+
+* Converts YOLO format labels to binary classes.
+* Extracts pose keypoints from images.
+* Saves processed data to CSV format.
+
+
+### Feature Engineering
+
+#### Advanced Techniques on Keypoints
+
+* Torso-normalized keypoint coordinates for better invariance.
+* Angle calculations for shoulders and elbows.
+* Distance-based features:
+    * Shoulder and hip widths.
+    * Ratios like shoulder-to-hip width.
+
+#### Preprocessing Pipeline
+
+* Missing value imputation using median strategy.
+* Feature scaling with standardization.
+* Label encoding for target variable.
+
+#### Model Architecture
+
+* XGBoost classifier with advanced configurations.
+* Hyperparameter optimization via RandomizedSearchCV.
+* Early stopping to prevent overfitting.
+* Multi-class classification support for extensibility.
+
+#### Performance
+
+* Validation accuracy metrics provided.
+* Classification report for detailed performance analysis.
+* Model evaluation on a separate validation dataset.
+
+
+### Fall Detection Application
+
+#### Overview
+
+* Developed a GUI application using PyQt5 for real-time fall detection.
+* Allows users to:
+    * Load a video file or use the laptop's camera for live detection.
+    * Start and stop detection with ease.
+    * View the video with predictions overlaid on each frame.
+
+#### Key Features
+
+* Utilizes the trained XGBoost model for classification.
+* Integrates MediaPipe Pose for real-time keypoint extraction from video frames.
+* Applies the same feature engineering pipeline used during training for consistency.
+* Displays predictions ("Need help" or "No need for help") on each video frame.
+* Includes a progress bar and status updates within the GUI.
+* Handles missing or invalid pose data gracefully.
+
+#### Technical Details
+
+* GUI developed using PyQt5 for cross-platform compatibility.
+* Real-time video capture and processing handled via OpenCV.
+* MediaPipe Pose used for efficient and accurate pose estimation.
+* Feature engineering functions mirror those used during training to ensure consistent data processing.
+* Prediction results are overlaid on the video frames using OpenCV functions.
+* Suppresses specific warnings for a cleaner user experience.
+
+#### Usage
+
+* Run the application script fall_detection_app.py to launch the GUI.
+* Use "Load Video" to select a video file, or "Use Camera" to use the laptop's camera.
+* Click "Start Detection" to begin processing.
+* The application displays the video with prediction labels and updates the progress bar accordingly.
+* Upon completion, the status updates, and the user is notified.
+
+#### Technical Stack
+
+* GUI: PyQt5.
+* Computer Vision: OpenCV, MediaPipe.
+* ML/Data Processing: pandas, numpy, xgboost, scikit-learn.
+* Additional Tools: SMOTE for class balancing.
+* Model Persistence: joblib.
+
+### Model and Resources
+
+* Trained model saved as improved_fall_detection_model_xgb.pkl.
+* Label encoder saved as improved_label_encoder.pkl.
+* Located in ../src/models/ directory.
+* The application script is fall_detection_app.py located in ../src/app/ directory.
+
