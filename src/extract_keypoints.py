@@ -16,16 +16,13 @@ VAL_LABEL_PATH = '../src/data/dataset/val/labels'
 
 # Define your classes (should match YOLO class IDs)
 CLASSES = ['Need help', 'No need for help']
-
-
-# Function to extract keypoints
 def extract_keypoints(image):
     """Extract keypoints from an image using MediaPipe."""
     results = pose.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    if results.pose_landmarks:
+    if hasattr(results, 'pose_landmarks'):
         keypoints = np.array([[lm.x, lm.y, lm.z] for lm in results.pose_landmarks.landmark]).flatten()
     else:
-        keypoints = np.zeros(99)  # 33 landmarks * 3 coordinates
+        keypoints = np.zeros(99)
     return keypoints
 
 
