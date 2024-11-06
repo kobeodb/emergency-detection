@@ -16,14 +16,23 @@ VAL_LABEL_PATH = '../src/data/dataset/val/labels'
 
 # Define your classes (should match YOLO class IDs)
 CLASSES = ['Need help', 'No need for help']
+
+
 def extract_keypoints(image):
-    """Extract keypoints from an image using MediaPipe."""
+    """
+    Extracts pose keypoints from an image using MediaPipe Pose.
+
+    Args:
+        image (numpy.ndarray): Input image in BGR format.
+
+    Returns:
+        numpy.ndarray: A flattened array of keypoints [x, y, z] if pose landmarks are detected.
+                       Returns an array of zeros if no landmarks are found (length 99).
+    """
     results = pose.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     if hasattr(results, 'pose_landmarks'):
-        keypoints = np.array([[lm.x, lm.y, lm.z] for lm in results.pose_landmarks.landmark]).flatten()
-    else:
-        keypoints = np.zeros(99)
-    return keypoints
+        return np.array([[lm.x, lm.y, lm.z] for lm in results.pose_landmarks.landmark]).flatten()
+    return np.zeros(99)
 
 
 def create_dataset(image_dir, label_dir, classes):

@@ -6,4 +6,6 @@
 /bot_brigade.egg-info
 *.pt
 *.avi
+*.pyc
+
 

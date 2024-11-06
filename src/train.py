@@ -11,8 +11,8 @@ from imblearn.over_sampling import SMOTE
 import joblib
 
 # Load the datasets
-train_df = pd.read_csv('train_keypoints.csv')
-val_df = pd.read_csv('val_keypoints.csv')
+train_df = pd.read_csv('data/points/train_keypoints.csv')
+val_df = pd.read_csv('data/points/val_keypoints.csv')
 
 # Print initial info about NaN values
 print("Training data NaN count:\n", train_df.isna().sum().sum())
@@ -28,6 +28,7 @@ y_val = val_df['label']
 label_encoder = LabelEncoder()
 y_train_encoded = label_encoder.fit_transform(y_train)
 y_val_encoded = label_encoder.transform(y_val)
+
 
 def enhanced_feature_engineering(df):
     try:
@@ -85,6 +86,7 @@ def enhanced_feature_engineering(df):
     except Exception as e:
         print(f"Error in feature engineering: {str(e)}")
         raise
+
 
 # Apply feature engineering
 print("\nApplying feature engineering...")
@@ -198,6 +200,6 @@ final_model = Pipeline([
 ])
 
 # Save the model and label encoder
-joblib.dump(final_model, '../src/models/improved_fall_detection_model_xgb.pkl')
-joblib.dump(label_encoder, '../src/models/improved_label_encoder.pkl')
+joblib.dump(final_model, 'data/models/improved_fall_detection_model_xgb.pkl')
+joblib.dump(label_encoder, 'data/models/improved_label_encoder.pkl')
 print("\nImproved model and label encoder saved.")
