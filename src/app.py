@@ -1,14 +1,15 @@
-import sys
+import cv2
+import warnings
+
 import cv2
 import joblib
-import numpy as np
 import mediapipe as mp
+import numpy as np
 import pandas as pd
-from PyQt5.QtWidgets import QApplication, QLabel, QPushButton, QVBoxLayout, QWidget, QHBoxLayout, \
-    QProgressBar, QMessageBox, QComboBox
-from PyQt5.QtGui import QImage, QPixmap, QFont
 from PyQt5.QtCore import QTimer, Qt
-import warnings
+from PyQt5.QtGui import QImage, QPixmap, QFont
+from PyQt5.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget, QHBoxLayout, \
+    QProgressBar, QMessageBox, QComboBox
 
 from src.data.db.main import MinioBucketWrapper
 
@@ -261,8 +262,3 @@ class FallDetectionApp(QWidget):
         event.accept()
 
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = FallDetectionApp()
-    window.show()
-    sys.exit(app.exec_())
