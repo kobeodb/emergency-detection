@@ -30,8 +30,8 @@ def extract_keypoints(image):
                        Returns an array of zeros if no landmarks are found (length 99).
     """
     results = pose.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    if hasattr(results, 'pose_landmarks'):
-        return np.array([[lm.x, lm.y, lm.z] for lm in results.pose_landmarks.landmark]).flatten()
+    if results.pose_landmarks:  # type: ignore
+        return np.array([[lm.x, lm.y, lm.z] for lm in results.pose_landmarks.landmark]).flatten()  # type: ignore
     return np.zeros(99)
 
 
