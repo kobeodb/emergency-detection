@@ -1,3 +1,5 @@
+import os.path
+
 import cv2
 import warnings
 
@@ -40,9 +42,8 @@ def extract_keypoints(frame):
                           Returns an array of zeros if no landmarks are found (length 99).
     """
     results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    if hasattr(results, 'pose_landmarks'):
-        keypoints = np.array([[lm.x, lm.y, lm.z] for lm in results.pose_landmarks.landmark]).flatten()
-        return keypoints
+    if results.pose_landmarks:  # type: ignore
+        return np.array([[lm.x, lm.y, lm.z] for lm in results.pose_landmarks.landmark]).flatten()  # type: ignore
     return None
 
 
@@ -88,8 +89,7 @@ def _annotate_frame(frame, label):
     """Annotates the frame with the detection label and adds a border based on detection status."""
     color = (0, 0, 255) if label.lower() == "need help" else (0, 255, 0)
     cv2.putText(frame, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-    border_color = color
-    cv2.copyMakeBorder(frame, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=border_color)
+    return cv2.copyMakeBorder(frame, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=color)
 
 
 class FallDetectionApp(QWidget):
@@ -115,8 +115,6 @@ class FallDetectionApp(QWidget):
         self._setup_video_display()
         self._setup_buttons()
         self._setup_progress_bar()
-
-        self.videos_dropdown = None
 
         # Video capture and timer
         self.cap = None
@@ -199,8 +197,8 @@ class FallDetectionApp(QWidget):
         if selected_video and selected_video != "Choose video media from MinIO":
             try:
                 # Download video to local temporary storage
-                minio_client.get_obj_file(selected_video, f"../out/temp/{selected_video}")
-                self.cap = cv2.VideoCapture(f"../out/temp/{selected_video}")
+                minio_client.get_obj_file(selected_video, f"../out/temp/")
+                self.cap = cv2.VideoCapture(f"../out/temp/{os.path.basename(selected_video)}")
                 self.start_detection_button.setEnabled(True)
                 self.status_label.setText(f"Status: Video '{selected_video}' loaded. Ready to start detection.")
             except Exception as e:
@@ -212,7 +210,7 @@ class FallDetectionApp(QWidget):
     def start_detection(self):
         """Begins the fall detection process by starting the frame update timer."""
         if self.cap is not None:
-            self.timer.start(30)  # Adjust frame rate as needed
+            self.timer.start(24)  # Adjust frame rate as needed
             self.progress_bar.setValue(0)
             self.status_label.setText("Status: Detection in progress...")
 
@@ -228,7 +226,7 @@ class FallDetectionApp(QWidget):
         if keypoints is not None:
             keypoints_df = feature_engineering(pd.DataFrame([keypoints]))
             prediction = label_encoder.inverse_transform(model.predict(keypoints_df))[0]
-            _annotate_frame(frame, prediction)
+            frame = _annotate_frame(frame, prediction)
 
         # Update progress and display frame
         self._update_progress()
