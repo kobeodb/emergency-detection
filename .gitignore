@@ -8,6 +8,6 @@
 *.avi
 .DS_Store
 local/
-src/__pycache__/*
+/src/__pycache__/*
 
 
