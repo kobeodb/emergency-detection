@@ -9,10 +9,10 @@ mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(static_image_mode=True)
 
 # Define paths (adjust these paths as needed)
-TRAIN_IMAGE_PATH = '../src/data/dataset/train/images'
-VAL_IMAGE_PATH = '../src/data/dataset/val/images'
-TRAIN_LABEL_PATH = '../src/data/dataset/train/labels'
-VAL_LABEL_PATH = '../src/data/dataset/val/labels'
+TRAIN_IMAGE_PATH = '../data/dataset/train/images'
+VAL_IMAGE_PATH = '../data/dataset/val/images'
+TRAIN_LABEL_PATH = '../data/dataset/train/labels'
+VAL_LABEL_PATH = '../data/dataset/val/labels'
 
 # Define your classes (should match YOLO class IDs)
 CLASSES = ['Need help', 'No need for help']
