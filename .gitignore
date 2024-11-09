@@ -6,4 +6,8 @@
 /bot_brigade.egg-info
 *.pt
 *.avi
+.DS_Store
+local/
+src/__pycache__/*
+
 
