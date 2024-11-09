@@ -1,21 +1,30 @@
 import argparse
 import math
 import os
-
 import cv2
 import threading
 from typing import Callable
 from ultralytics import YOLO
+from comet_ml import start
+from comet_ml.integration.pytorch import log_model
+from dotenv import load_dotenv
 
-# Paths for training and validation
-# from path import TRAIN_PATH, VAL_PATH
+load_dotenv()
+
+API_KEY = os.getenv('API_KEY')
+
+experiment = start(
+  api_key=API_KEY,
+  project_name="general",
+  workspace="kobeodb"
+)
 
 # Constants
 FONT_SCALE = 0.5
 FONT_COLOR = (0, 0, 255)
 FONT_THICKNESS = 1
-CLASSES = ['fall', 'notfall', 'standing']
-TRAIN_EPOCHS = 1
+CLASSES = ['Fall Detected', 'Not Fall', 'Sitting', 'Walking']
+TRAIN_EPOCHS = 10
 IMG_SIZE = 640
 
 
@@ -61,10 +70,13 @@ def train_model(weights: str, data_yaml: str, epochs: int = TRAIN_EPOCHS, img_si
     """Train the YOLO model on the dataset."""
     model = initialize_model(weights)
     model.train(data=data_yaml, epochs=epochs, imgsz=img_size)
+    log_model(experiment, model=model, model_name="yoloNewDataSet")
 
 
 if __name__ == "__main__":
-    # Train the model
+
     data_yaml_path = os.path.abspath("../data/data.yaml")
     weights_path = os.path.abspath("../data/weights/yolo11n.pt")
+
+    # Train the model
     train_model(weights=weights_path, data_yaml=data_yaml_path)

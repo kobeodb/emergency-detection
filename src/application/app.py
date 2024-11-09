@@ -1,8 +1,5 @@
 import os.path
-
-import cv2
 import warnings
-
 import cv2
 import joblib
 import mediapipe as mp
