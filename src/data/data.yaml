@@ -2,11 +2,9 @@
 
 train: "../dataset/train/images"
 val: "../dataset/val/images"
-#train_labels: "../src/data/dataset/train/labels"
-#val_labels: "../src/data/dataset/val/labels"
+test: "../dataset/test/images"
 
 nc: 4
-
-names: ['Fall Detected', 'Walking', 'Sitting', 'Not Fall']
+names: ['Fall Detected', 'Not Fall', 'Sitting', 'Walking']
 
 
