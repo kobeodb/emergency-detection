@@ -1,7 +1,7 @@
 task: detect
 mode: train
-model: /Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/yolo11n.pt
-data: /Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/data.yaml
+model: /Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/src/data/weights/yolo11n.pt
+data: /Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/src/data/data.yaml
 epochs: 1
 time: null
 patience: 100
@@ -13,7 +13,7 @@ cache: false
 device: null
 workers: 8
 project: null
-name: train
+name: train2
 exist_ok: false
 pretrained: true
 optimizer: auto
@@ -31,7 +31,7 @@ profile: false
 freeze: null
 multi_scale: false
 overlap_mask: true
-mask_ratio: image_classifier
+mask_ratio: 4
 dropout: 0.0
 val: true
 split: val
@@ -68,7 +68,7 @@ int8: false
 dynamic: false
 simplify: true
 opset: null
-workspace: image_classifier
+workspace: 4
 nms: false
 lr0: 0.01
 lrf: 0.01
@@ -86,7 +86,7 @@ label_smoothing: 0.0
 nbs: 64
 hsv_h: 0.015
 hsv_s: 0.7
-hsv_v: 0.image_classifier
+hsv_v: 0.4
 degrees: 0.0
 translate: 0.1
 scale: 0.5
@@ -100,8 +100,8 @@ mixup: 0.0
 copy_paste: 0.0
 copy_paste_mode: flip
 auto_augment: randaugment
-erasing: 0.image_classifier
+erasing: 0.4
 crop_fraction: 1.0
 cfg: null
 tracker: botsort.yaml
-save_dir: /Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/runs/detect/train
+save_dir: /Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/runs/detect/train2

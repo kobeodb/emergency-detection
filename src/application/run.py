@@ -2,7 +2,7 @@ import sys
 
 from PyQt5.QtWidgets import QApplication
 
-from src.app import FallDetectionApp
+from app import FallDetectionApp
 
 
 def main():

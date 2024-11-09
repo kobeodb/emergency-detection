@@ -20,8 +20,8 @@ warnings.filterwarnings("ignore", category=UserWarning, module="google.protobuf"
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
 # Load the trained model and label encoder
-model = joblib.load('data/models/improved_fall_detection_model_xgb.pkl')
-label_encoder = joblib.load('data/models/improved_label_encoder.pkl')
+model = joblib.load('../src/data/models/improved_fall_detection_model_xgb.pkl')
+label_encoder = joblib.load('../src/data/models/improved_label_encoder.pkl')
 
 # Initialize MediaPipe Pose
 mp_pose = mp.solutions.pose

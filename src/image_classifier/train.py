@@ -11,8 +11,8 @@ from imblearn.over_sampling import SMOTE
 import joblib
 
 # Load datasets
-train_df = pd.read_csv('data/points/train_keypoints.csv')
-val_df = pd.read_csv('data/points/val_keypoints.csv')
+train_df = pd.read_csv('../data/points/train_keypoints.csv')
+val_df = pd.read_csv('../data/points/val_keypoints.csv')
 
 # Check for NaN values in datasets
 print("Training data NaN count:\n", train_df.isna().sum().sum())
@@ -155,6 +155,6 @@ final_model = Pipeline([
     ('preprocessor', preprocessing_pipeline),
     ('classifier', final_xgb)
 ])
-joblib.dump(final_model, 'data/models/improved_fall_detection_model_xgb.pkl')
-joblib.dump(label_encoder, 'data/models/improved_label_encoder.pkl')
+joblib.dump(final_model, '../data/models/improved_fall_detection_model_xgb.pkl')
+joblib.dump(label_encoder, '../data/models/improved_label_encoder.pkl')
 print("\nImproved model and label encoder saved.")

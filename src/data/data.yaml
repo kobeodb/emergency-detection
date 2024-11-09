@@ -1,21 +1,12 @@
 # Filename: data.yaml
 
-paths:
-  train_images: "../src/data/dataset/train/images"
-  val_images: "../src/data/dataset/val/images"
-  train_labels: "../src/data/dataset/train/labels"
-  val_labels: "../src/data/dataset/val/labels"
+train: "../dataset/train/images"
+val: "../dataset/val/images"
+#train_labels: "../src/data/dataset/train/labels"
+#val_labels: "../src/data/dataset/val/labels"
 
-classes:
-  - "Need Help"
-  - "No Need of Help"
+nc: 4
 
-model:
-  random_forest:
-    n_estimators: 100
-    max_depth: 10
-    random_state: 42
+names: ['Fall Detected', 'Walking', 'Sitting', 'Not Fall']
 
-gui:
-  window_title: "Fall Detection"
-  window_size: [800, 600]
+
