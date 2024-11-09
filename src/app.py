@@ -20,8 +20,8 @@ warnings.filterwarnings("ignore", category=UserWarning, module="google.protobuf"
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
 # Load the trained model and label encoder
-model = joblib.load('data/models/fall_detection_model_xgb.pkl')
-label_encoder = joblib.load('data/models/label_encoder.pkl')
+model = joblib.load('data/models/improved_fall_detection_model_xgb.pkl')
+label_encoder = joblib.load('data/models/improved_label_encoder.pkl')
 
 # Initialize MediaPipe Pose
 mp_pose = mp.solutions.pose
@@ -66,21 +66,19 @@ def feature_engineering(df):
     df.iloc[:, 1::3] -= torso_y.values[:, np.newaxis]  # Normalize y-coordinates
 
     # Calculate joint angles as additional features
-    df['angle_shoulder_elbow'] = np.degrees(
+    df['left_shoulder_angle'] = np.degrees(
         np.arctan2(df.iloc[:, 1] - df.iloc[:, 4],
                    df.iloc[:, 0] - df.iloc[:, 3]))
-
-    df['angle_elbow_wrist'] = np.degrees(
-        np.arctan2(df.iloc[:, 4] - df.iloc[:, 7],
-                   df.iloc[:, 3] - df.iloc[:, 6]))
-
-    # Add placeholders for missing features with default values
-    df = df.assign(
-        angle_hip_knee_ankle=0,
-        angle_shoulder_hip=0,
-        velocity=0,
-        acceleration=0
-    )
+    df['right_shoulder_angle'] = np.degrees(
+        np.arctan2(df.iloc[:, 7] - df.iloc[:, 10],
+                   df.iloc[:, 6] - df.iloc[:, 9]))
+    df['shoulder_width'] = np.sqrt(
+        (df.iloc[:, 0] - df.iloc[:, 6]) ** 2 +
+        (df.iloc[:, 1] - df.iloc[:, 7]) ** 2)
+    df['hip_width'] = np.sqrt(
+        (df.iloc[:, 12] - df.iloc[:, 18]) ** 2 +
+        (df.iloc[:, 13] - df.iloc[:, 19]) ** 2)
+    df['shoulder_hip_ratio'] = df['shoulder_width'] / df['hip_width']
 
     return df
 
@@ -225,6 +223,7 @@ class FallDetectionApp(QWidget):
         keypoints = extract_keypoints(frame)
         if keypoints is not None:
             keypoints_df = feature_engineering(pd.DataFrame([keypoints]))
+            keypoints_df.columns = keypoints_df.columns.astype(str)
             prediction = label_encoder.inverse_transform(model.predict(keypoints_df))[0]
             frame = _annotate_frame(frame, prediction)
 
