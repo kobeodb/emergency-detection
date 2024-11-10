@@ -12,7 +12,7 @@ from collections import deque
 import time
 
 # Load models
-yolo_model = YOLO('../../runs/detect/train/weights/best.pt')
+yolo_model = YOLO('../../runs/detect/train2/weights/best.pt')
 classifier = joblib.load('../data/models/improved_fall_detection_model_xgb.pkl')
 label_encoder = joblib.load('../data/models/improved_label_encoder.pkl')
 
