@@ -28,13 +28,9 @@ def evaluate_model(weights: str, data_yaml: str, img_size: int = 640):
     print(f"Calculated Accuracy: {accuracy:.4f}")
 
 
-
-
 if __name__ == "__main__":
-
     data_yaml_path = os.path.abspath("../data/data.yaml")
-    weights_path = os.path.abspath("../../runs/detect/train/weights/best.pt")
-
+    weights_path = os.path.abspath("../data/weights/best.pt")
 
     # Evaluate the model
     print("\nEvaluating the model on the test set:")

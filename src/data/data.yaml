@@ -1,10 +1,13 @@
-# Filename: data.yaml
-
-train: "../dataset/train/images"
-val: "../dataset/val/images"
-test: "../dataset/test/images"
+train: ../train/images
+val: ../valid/images
+test: ../test/images
 
 nc: 4
-names: ['Fall Detected', 'Not Fall', 'Sitting', 'Walking']
+names: ['Fall-Detected', 'Not-Fall', 'Sitting', 'Walking']
 
-
+roboflow:
+  workspace: bot-brigade
+  project: bot-brigate-eyes-for-resque
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/bot-brigade/bot-brigate-eyes-for-resque/dataset/1

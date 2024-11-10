@@ -11,12 +11,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.getenv('API_KEY')
+API_KEY = os.getenv('COMET_ML_API_KEY')
 
 experiment = start(
   api_key=API_KEY,
   project_name="general",
-  workspace="kobeodb"
+  workspace="mxttywxtty"
 )
 
 # Constants
@@ -33,38 +33,53 @@ def initialize_model(weights: str) -> YOLO:
     return YOLO(weights)
 
 
-def display_detection_results(img, results):
-    """Annotate image with detection results."""
-    for result in results:
-        for box in result.boxes:
-            class_id = int(box.cls[0])
-            label = CLASSES[class_id]
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
-            confidence = math.ceil(box.conf[0] * 100)
-            cv2.putText(img, f'{label}: {confidence}%', (x1, y1 - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, FONT_SCALE, FONT_COLOR, FONT_THICKNESS)
-            cv2.rectangle(img, (x1, y1), (x2, y2), FONT_COLOR, 1)
-    return img
-
-
-def detect(video_path: str, weights: str, callback: Callable, stop_event: threading.Event):
+def detect(video_path: str, weights: str, callback: Callable, stop_event: threading.Event, ground_truth: dict):
     """Perform detection on video frames."""
     model = initialize_model(weights)
+
     cap = cv2.VideoCapture(video_path)
+    count = 0
 
     while cap.isOpened() and not stop_event.is_set():
-        success, frame = cap.read()
-        if not success:
+        ret, frame = cap.read()
+
+        if not ret:
             break
 
         results = model(frame, stream=True)
-        annotated_frame = display_detection_results(frame, results)
+
+        detections = []
+        for detection in results[0].boxes.data:
+            x1, x2, y1, y2, conf, cls = detection.cpu().numpy()
+
+            label = CLASSES[int(cls)]
+
+            if label == "Fall-Detected":
+                detections.append((label, conf))
+
+            cv2.putText(img, f'{label}: {conf}%', (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, FONT_SCALE, FONT_COLOR, FONT_THICKNESS)
+            cv2.rectangle(img, (x1, y1), (x2, y2), FONT_COLOR, 1)
+
+        truth = ground_truth[count].get("Fall-Detected", 0)
+        found = len(detections)
+        correct = min(truth, found)
+        false = max(0, found - truth)
+        missed = max(0, truth - found)
+
+        metrics["Truth"] += truth
+        metrics["Found"] += found
+        metrics["Correct"] += correct
+        metrics["False"] += false
+        metrics["Missed"] += missed
+
+        count += 1
+
         callback(annotated_frame)
 
     cap.release()
     cv2.destroyAllWindows()
 
-
+    return pd.DataFrame([{"Video": video_path.split('/')[-1], **metrics}])
 
 def train_model(weights: str, data_yaml: str, epochs: int = TRAIN_EPOCHS, img_size: int = IMG_SIZE):
     """Train the YOLO model on the dataset."""
@@ -74,7 +89,6 @@ def train_model(weights: str, data_yaml: str, epochs: int = TRAIN_EPOCHS, img_si
 
 
 if __name__ == "__main__":
-
     data_yaml_path = os.path.abspath("../data/data.yaml")
     weights_path = os.path.abspath("../data/weights/yolo11n.pt")
 

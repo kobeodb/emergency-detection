@@ -47,8 +47,9 @@ def create_dataset(image_dir, label_dir, classes):
 
         # Read and process image
         image = cv2.imread(image_path)
-        if image is None:
-            continue
+
+        if not image:
+            return
 
         # Extract keypoints
         keypoints = extract_keypoints(image)
@@ -60,7 +61,6 @@ def create_dataset(image_dir, label_dir, classes):
             # Check if label content is empty
             if not label_content:
                 print(f"Warning: Label file {label_file} is empty or improperly formatted.")
-                continue
 
             # Parse class ID
             class_id = int(label_content.split()[0])  # YOLO format stores class ID as the first item

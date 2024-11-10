@@ -12,7 +12,7 @@ from collections import deque
 import time
 
 # Load models
-yolo_model = YOLO('../../runs/detect/train/weights/best.pt')
+yolo_model = YOLO('../data/weights/best.pt')
 classifier = joblib.load('../data/models/improved_fall_detection_model_xgb.pkl')
 label_encoder = joblib.load('../data/models/improved_label_encoder.pkl')
 
@@ -51,6 +51,14 @@ class FallDetectionApp(QWidget):
         self.fall_start_time = None
         self.current_bbox = None
 
+        self.metrics = {
+            "Truth": 0,
+            "Found": 0,
+            "Correct": 0,
+            "False": 0,
+            "Missed": 0
+        }
+
     def _setup_ui(self):
         """Setup UI elements."""
         self.timer_label = QLabel("Motion Timer: 0 s")
@@ -77,10 +85,6 @@ class FallDetectionApp(QWidget):
 
     def start_detection(self):
         """Starts video capture and detection from camera."""
-        self.cap = cv2.VideoCapture(0)  # Open camera
-        if not self.cap.isOpened():
-            QMessageBox.critical(self, "Error", "Failed to access camera.")
-            return
         self.reset_timers()
         self.timer.start(24)  # Set frame update interval
         self.status_label.setText("Status: Detection in progress...")
@@ -94,7 +98,7 @@ class FallDetectionApp(QWidget):
                 QMessageBox.critical(self, "Error", "Failed to load video.")
                 return
             self.reset_timers()
-            self.timer.start(24)
+            self.timer.start(30)
             self.status_label.setText(f"Status: Loaded video {os.path.basename(video_path)}")
 
 
@@ -105,31 +109,30 @@ class FallDetectionApp(QWidget):
             self.timer.stop()
             self.status_label.setText("Status: Detection complete.")
             self.reset_timers()
+
+            pd.DataFrame([self.metrics]).to_csv("./frame.csv", index=False)
             return
 
         results = yolo_model(frame)
         detections = results[0].boxes
+        count = 0
 
         fall_detected = False
         for det in detections:
-            # Extract bounding box and class information
             x1, y1, x2, y2 = map(int, det.xyxy[0])
             conf = float(det.conf[0])
             cls = int(det.cls[0])
             cls_name = yolo_model.names[cls]
 
-            # Draw bounding box and label on the frame
-            label = f"{cls_name}: {conf:.2f}"
-            color = (0, 255, 0) if cls_name != "Fall Detected" else (0, 0, 255)
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-
-            # Check for "Fall Detected" class
+            color = (0, 255, 0)
             if cls_name == "Fall Detected":
                 fall_detected = True
                 self.current_bbox = (x1, y1, x2, y2)
+                color = (0, 0, 255)
 
-        # If fall detected, process motion tracking and classification
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(frame, f"{cls_name}: {conf:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
         if fall_detected:
             self.track_motion()
             if self.low_movement_detected():
@@ -172,23 +175,44 @@ class FallDetectionApp(QWidget):
             movement = np.linalg.norm(
                 np.array(self.motion_history[-1][:2]) - np.array(self.motion_history[-2][:2])
             )
-            if movement < MOTION_THRESHOLD:
-                if time.time() - self.fall_start_time >= TIME_THRESHOLD:
-                    return True
+            return movement < MOTION_THRESHOLD and time.time() - self.fall_start_time >= TIME_THRESHOLD
         return False
 
     def check_with_classifier(self, frame):
-        """Use classifier to confirm if a fall has occurred."""
+        """Use classifier to confirm if a fall has occurred and update metrics accurately."""
         if self.current_bbox:
             x1, y1, x2, y2 = self.current_bbox
             cropped_frame = frame[y1:y2, x1:x2]
             keypoints = self.extract_keypoints(cropped_frame)
+
             if keypoints is not None:
                 prediction = classifier.predict([keypoints])[0]
                 label = label_encoder.inverse_transform([prediction])[0]
-                color = (0, 0, 255) if label == "Need help" else (0, 255, 0)
+
+                # Suppose 'Need help' means a fall is detected
+                if label == "Need help":
+                    self.metrics["Found"] += 1
+                    if self.ground_truth_check():
+                        self.metrics["Correct"] += 1
+                    else:
+                        self.metrics["False"] += 1
+                    color = (0, 0, 255)
+                else:
+                    if self.ground_truth_check():
+                        self.metrics["Missed"] += 1
+                    color = (0, 255, 0)
+
+                # Display result
                 cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+
+    def ground_truth_check(self):
+        """Simulate a ground truth label check for validation. You should replace this logic."""
+        # Example:
+        # Return True if ground truth is "Fall detected in this frame"
+        # Use pre-labeled data logic or hard-coded tests for proper evaluation.
+        # e.g., return True/False depending on the testing label.
+        return
 
     def extract_keypoints(self, frame):
         """Extract pose keypoints using MediaPipe Pose."""
@@ -209,7 +233,6 @@ class FallDetectionApp(QWidget):
         bytes_per_line = ch * w
         qimg = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
         self.video_label.setPixmap(QPixmap.fromImage(qimg))
-
 
 if __name__ == "__main__":
     app = QApplication([])
