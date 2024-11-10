@@ -12,3 +12,7 @@ local/
 
 
 
+/src/data/ground_truth
+src/data/ground_truth/frame_100.jpg
+*.jpg
+*.jpg

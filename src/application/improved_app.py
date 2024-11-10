@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import joblib
 import mediapipe as mp
+import pandas as pd
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QPushButton, QProgressBar, QMessageBox, QFileDialog
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QPixmap, QImage, QFont
@@ -51,6 +52,7 @@ class FallDetectionApp(QWidget):
         self.fall_start_time = None
         self.current_bbox = None
 
+        self.ground_truth_labels = []
         self.metrics = {
             "Truth": 0,
             "Found": 0,
@@ -58,6 +60,14 @@ class FallDetectionApp(QWidget):
             "False": 0,
             "Missed": 0
         }
+
+    def generate_labels(self):
+        """Generate labels for each frame based on defined ranges."""
+        return ["Not Fall" if 0 <= i <= 189 else
+                "Fall Detected" if 190 <= i <= 275 else
+                "Need help" if 276 <= i <= 585 else
+                "Not Fall" if 586 <= i <= 646 else
+                "unlabeled" for i in range(self.frame_count)]
 
     def _setup_ui(self):
         """Setup UI elements."""
@@ -97,10 +107,13 @@ class FallDetectionApp(QWidget):
             if not self.cap.isOpened():
                 QMessageBox.critical(self, "Error", "Failed to load video.")
                 return
+
+            self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            self.ground_truth_labels = self.generate_labels()
+
             self.reset_timers()
             self.timer.start(30)
             self.status_label.setText(f"Status: Loaded video {os.path.basename(video_path)}")
-
 
     def update_frame(self):
         """Process each frame for YOLO detection, motion tracking, and fall classification."""
@@ -110,12 +123,16 @@ class FallDetectionApp(QWidget):
             self.status_label.setText("Status: Detection complete.")
             self.reset_timers()
 
-            pd.DataFrame([self.metrics]).to_csv("./frame.csv", index=False)
+            print("\n\nClassification Frame Report:")
+            print(pd.DataFrame([self.metrics]).to_string())
+
             return
 
         results = yolo_model(frame)
         detections = results[0].boxes
         count = 0
+
+        self.metrics["Truth"] = self.ground_truth_labels.count("Need help")
 
         fall_detected = False
         for det in detections:
@@ -141,6 +158,14 @@ class FallDetectionApp(QWidget):
             self.reset_fall_state()
 
         self.display_frame(frame)
+
+    def save_metrics(self):
+        """Save metrics and labels to a CSV file."""
+        # Convert metrics to DataFrame
+        metrics_df = pd.DataFrame([self.metrics])
+
+        # Save metrics to CSV
+        metrics_df.to_csv("./data/metrics.csv", index=False)
 
     def track_motion(self):
         """Track bounding box position and check for movement."""
@@ -189,30 +214,25 @@ class FallDetectionApp(QWidget):
                 prediction = classifier.predict([keypoints])[0]
                 label = label_encoder.inverse_transform([prediction])[0]
 
+                frame_index = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1
+                truth_label = self.ground_truth_labels[frame_index]
+
                 # Suppose 'Need help' means a fall is detected
                 if label == "Need help":
                     self.metrics["Found"] += 1
-                    if self.ground_truth_check():
+                    if label == truth_label:
                         self.metrics["Correct"] += 1
                     else:
                         self.metrics["False"] += 1
                     color = (0, 0, 255)
                 else:
-                    if self.ground_truth_check():
+                    if label == truth_label:
                         self.metrics["Missed"] += 1
                     color = (0, 255, 0)
 
                 # Display result
                 cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-
-    def ground_truth_check(self):
-        """Simulate a ground truth label check for validation. You should replace this logic."""
-        # Example:
-        # Return True if ground truth is "Fall detected in this frame"
-        # Use pre-labeled data logic or hard-coded tests for proper evaluation.
-        # e.g., return True/False depending on the testing label.
-        return
 
     def extract_keypoints(self, frame):
         """Extract pose keypoints using MediaPipe Pose."""
