@@ -107,7 +107,6 @@ class FallDetectionApp(QWidget):
             self.reset_timers()
             return
 
-        # Run YOLO detection
         results = yolo_model(frame)
         detections = results[0].boxes
 
@@ -138,7 +137,6 @@ class FallDetectionApp(QWidget):
         else:
             self.reset_fall_state()
 
-        # Display annotated frame
         self.display_frame(frame)
 
     def track_motion(self):
