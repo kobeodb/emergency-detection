@@ -33,7 +33,7 @@ def evaluate_model(weights: str, data_yaml: str, img_size: int = 640):
 if __name__ == "__main__":
 
     data_yaml_path = os.path.abspath("../data/data.yaml")
-    weights_path = os.path.abspath("../../runs/detect/train/weights/best.pt")
+    weights_path = os.path.abspath("../../runs/detect/train2/weights/best.pt")
 
 
     # Evaluate the model
