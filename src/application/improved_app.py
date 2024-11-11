@@ -4,7 +4,8 @@ import numpy as np
 import joblib
 import mediapipe as mp
 import pandas as pd
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QPushButton, QProgressBar, QMessageBox, QFileDialog
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QPushButton, QProgressBar, QMessageBox, \
+    QFileDialog
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QPixmap, QImage, QFont
 from ultralytics import YOLO
@@ -51,6 +52,9 @@ class FallDetectionApp(QWidget):
         self.motion_history = deque(maxlen=MAX_HISTORY)
         self.fall_start_time = None
         self.current_bbox = None
+
+        self.flagged_frame = None
+        self.frame_count = None
 
         self.ground_truth_labels = []
         self.metrics = {
@@ -123,16 +127,10 @@ class FallDetectionApp(QWidget):
             self.status_label.setText("Status: Detection complete.")
             self.reset_timers()
 
-            print("\n\nClassification Frame Report:")
-            print(pd.DataFrame([self.metrics]).to_string())
-
             return
 
         results = yolo_model(frame)
         detections = results[0].boxes
-        count = 0
-
-        self.metrics["Truth"] = self.ground_truth_labels.count("Need help")
 
         fall_detected = False
         for det in detections:
@@ -215,22 +213,26 @@ class FallDetectionApp(QWidget):
                 label = label_encoder.inverse_transform([prediction])[0]
 
                 frame_index = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1
-                truth_label = self.ground_truth_labels[frame_index]
+                ground_truth = self.ground_truth_labels[frame_index]
 
-                # Suppose 'Need help' means a fall is detected
-                if label == "Need help":
-                    self.metrics["Found"] += 1
-                    if label == truth_label:
-                        self.metrics["Correct"] += 1
-                    else:
-                        self.metrics["False"] += 1
-                    color = (0, 0, 255)
-                else:
-                    if label == truth_label:
-                        self.metrics["Missed"] += 1
-                    color = (0, 255, 0)
+                self.metrics["Truth"] = self.ground_truth_labels.index("Need help")
+                if label == "Need help" and self.metrics["Found"] == 0:
+                    self.metrics["Found"] = frame_index
 
-                # Display result
+                if self.metrics["Correct"] == 0 and self.metrics["False"] == 0:
+                    # Introduce a frame offset range so that the classified label can be lenient
+                    if label == "Need help" and ground_truth == "Need help" and self.metrics["Truth"] - 20 <= frame_index <= self.metrics["Truth"] + 20:
+                        self.metrics["Correct"] = frame_index
+
+                    elif label == "Need help" and ground_truth != "Need help":
+                        self.metrics["False"] = frame_index
+
+                if ground_truth == "Need help" and label != "Need help" and self.metrics["Missed"] == 0:
+                    self.metrics["Missed"] = frame_index
+
+                color = (0, 0, 255)
+                print(pd.DataFrame([self.metrics]).to_string(index=False))
+
                 cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
@@ -254,10 +256,9 @@ class FallDetectionApp(QWidget):
         qimg = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
         self.video_label.setPixmap(QPixmap.fromImage(qimg))
 
+
 if __name__ == "__main__":
     app = QApplication([])
     main_window = FallDetectionApp()
     main_window.show()
     app.exec()
-
-
