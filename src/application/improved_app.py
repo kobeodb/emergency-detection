@@ -3,7 +3,10 @@ import cv2
 import numpy as np
 import joblib
 import mediapipe as mp
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QPushButton, QProgressBar, QMessageBox, QFileDialog
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
+    QPushButton, QProgressBar, QMessageBox, QFileDialog
+)
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QPixmap, QImage, QFont
 from ultralytics import YOLO
@@ -12,7 +15,6 @@ from collections import deque
 import time
 
 # Load models
-yolo_model = YOLO('../../runs/detect/train2/weights/best.pt')
 classifier = joblib.load('../data/models/improved_fall_detection_model_xgb.pkl')
 label_encoder = joblib.load('../data/models/improved_label_encoder.pkl')
 
@@ -26,7 +28,7 @@ TIME_THRESHOLD = 4  # Seconds of low movement to trigger classifier
 MAX_HISTORY = 30  # Bounding box history size
 
 
-class FallDetectionApp(QWidget):
+class BotBrigadeApp(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Emergency Detector")
@@ -51,8 +53,20 @@ class FallDetectionApp(QWidget):
         self.fall_start_time = None
         self.current_bbox = None
 
+        # YOLO model
+        self.yolo_model = None
+
     def _setup_ui(self):
         """Setup UI elements."""
+        # Status label at the top left
+        status_layout = QHBoxLayout()
+        self.status_label = QLabel("Status: Waiting for video input...")
+        self.status_label.setFont(QFont("Arial", 12))
+        self.status_label.setAlignment(Qt.AlignLeft)
+        status_layout.addWidget(self.status_label, alignment=Qt.AlignLeft)
+
+        self.layout.addLayout(status_layout)
+
         self.timer_label = QLabel("Motion Timer: 0 s")
         self.timer_label.setFont(QFont("Arial", 16, QFont.Bold))
         self.timer_label.setAlignment(Qt.AlignCenter)
@@ -61,22 +75,33 @@ class FallDetectionApp(QWidget):
         self.video_label = QLabel(self)
         self.video_label.setAlignment(Qt.AlignCenter)
         self.video_label.setMinimumSize(1080, 720)
+        self.video_label.setScaledContents(True)
         self.layout.addWidget(self.video_label, alignment=Qt.AlignCenter)
 
-        self.status_label = QLabel("Status: Waiting for video input...")
-        self.status_label.setFont(QFont("Arial", 12))
-        self.layout.addWidget(self.status_label)
+        button_layout = QHBoxLayout()
 
         self.start_button = QPushButton("Start Detection")
         self.start_button.clicked.connect(self.start_detection)
-        self.layout.addWidget(self.start_button)
+        button_layout.addWidget(self.start_button)
 
         self.load_button = QPushButton("Load Video")
         self.load_button.clicked.connect(self.load_video)
-        self.layout.addWidget(self.load_button)
+        button_layout.addWidget(self.load_button)
+
+        self.load_model_button = QPushButton("Load YOLO Model")
+        self.load_model_button.clicked.connect(self.load_yolo_model)
+        button_layout.addWidget(self.load_model_button)
+
+        self.layout.addLayout(button_layout)
+
+
 
     def start_detection(self):
         """Starts video capture and detection from camera."""
+        if self.yolo_model is None:
+            QMessageBox.critical(self, "Error", "Please load a YOLO model first.")
+            return
+
         self.cap = cv2.VideoCapture(0)  # Open camera
         if not self.cap.isOpened():
             QMessageBox.critical(self, "Error", "Failed to access camera.")
@@ -87,6 +112,10 @@ class FallDetectionApp(QWidget):
 
     def load_video(self):
         """Allows the user to load a video file for detection."""
+        if self.yolo_model is None:
+            QMessageBox.critical(self, "Error", "Please load a YOLO model first.")
+            return
+
         video_path, _ = QFileDialog.getOpenFileName(self, "Select Video File", "", "Video Files (*.mp4 *.avi *.mov)")
         if video_path:
             self.cap = cv2.VideoCapture(video_path)
@@ -97,7 +126,14 @@ class FallDetectionApp(QWidget):
             self.timer.start(24)
             self.status_label.setText(f"Status: Loaded video {os.path.basename(video_path)}")
 
-
+    def load_yolo_model(self):
+        """Allows the user to load a YOLO model file."""
+        model_path, _ = QFileDialog.getOpenFileName(self, "Select YOLO Model File", "", "Model Files (*.pt)")
+        if model_path:
+            self.yolo_model = YOLO(model_path)
+            model_name = os.path.basename(model_path)
+            self.status_label.setText(f"Status: YOLO model loaded - {model_name}")
+            QMessageBox.information(self, "Success", f"YOLO model loaded: {model_name}")
     def update_frame(self):
         """Process each frame for YOLO detection, motion tracking, and fall classification."""
         ret, frame = self.cap.read()
@@ -107,7 +143,7 @@ class FallDetectionApp(QWidget):
             self.reset_timers()
             return
 
-        results = yolo_model(frame)
+        results = self.yolo_model(frame)
         detections = results[0].boxes
 
         fall_detected = False
@@ -116,7 +152,7 @@ class FallDetectionApp(QWidget):
             x1, y1, x2, y2 = map(int, det.xyxy[0])
             conf = float(det.conf[0])
             cls = int(det.cls[0])
-            cls_name = yolo_model.names[cls]
+            cls_name = self.yolo_model.names[cls]
 
             # Draw bounding box and label on the frame
             label = f"{cls_name}: {conf:.2f}"
@@ -213,8 +249,6 @@ class FallDetectionApp(QWidget):
 
 if __name__ == "__main__":
     app = QApplication([])
-    main_window = FallDetectionApp()
+    main_window = BotBrigadeApp()
     main_window.show()
     app.exec()
-
-
