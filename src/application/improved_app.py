@@ -5,7 +5,7 @@ import joblib
 import mediapipe as mp
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
-    QPushButton, QProgressBar, QMessageBox, QFileDialog
+    QPushButton, QProgressBar, QMessageBox, QFileDialog, QTableWidget, QTableWidgetItem, QSlider
 )
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QPixmap, QImage, QFont
@@ -13,10 +13,15 @@ from ultralytics import YOLO
 from sklearn.preprocessing import StandardScaler
 from collections import deque
 import time
+from torch.utils.tensorboard import SummaryWriter
+
 
 # Load models
 classifier = joblib.load('../data/models/improved_fall_detection_model_xgb.pkl')
 label_encoder = joblib.load('../data/models/improved_label_encoder.pkl')
+
+# Weights
+yolo_weights_path = "../application/needs_for_application/best.pt"
 
 # Initialize pose estimation
 mp_pose = mp.solutions.pose
@@ -55,6 +60,9 @@ class BotBrigadeApp(QWidget):
 
         # YOLO model
         self.yolo_model = None
+        self.load_yolo_model()
+
+        self.writer = SummaryWriter(log_dir="runs/fall_detection")
 
     def _setup_ui(self):
         """Setup UI elements."""
@@ -80,38 +88,26 @@ class BotBrigadeApp(QWidget):
 
         button_layout = QHBoxLayout()
 
-        self.start_button = QPushButton("Start Detection")
-        self.start_button.clicked.connect(self.start_detection)
-        button_layout.addWidget(self.start_button)
-
         self.load_button = QPushButton("Load Video")
         self.load_button.clicked.connect(self.load_video)
         button_layout.addWidget(self.load_button)
 
-        self.load_model_button = QPushButton("Load YOLO Model")
-        self.load_model_button.clicked.connect(self.load_yolo_model)
-        button_layout.addWidget(self.load_model_button)
+        self.start_button = QPushButton("Start Detection")
+        self.start_button.clicked.connect(self.start_detection)
+        self.start_button.setEnabled(False)
+        button_layout.addWidget(self.start_button)
 
         self.layout.addLayout(button_layout)
 
-
-
-    def start_detection(self):
-        """Starts video capture and detection from camera."""
-        if self.yolo_model is None:
-            QMessageBox.critical(self, "Error", "Please load a YOLO model first.")
-            return
-
-        self.cap = cv2.VideoCapture(0)  # Open camera
-        if not self.cap.isOpened():
-            QMessageBox.critical(self, "Error", "Failed to access camera.")
-            return
-        self.reset_timers()
-        self.timer.start(24)  # Set frame update interval
-        self.status_label.setText("Status: Detection in progress...")
+    def load_yolo_model(self):
+        """Load YOLO model."""
+        model_path = yolo_weights_path
+        if model_path:
+            self.yolo_model = YOLO(model_path)
+            self.status_label.setText(f"Status: YOLO model loaded from {os.path.basename(model_path)}")
 
     def load_video(self):
-        """Allows the user to load a video file for detection."""
+        """Load a video file for detection."""
         if self.yolo_model is None:
             QMessageBox.critical(self, "Error", "Please load a YOLO model first.")
             return
@@ -123,17 +119,24 @@ class BotBrigadeApp(QWidget):
                 QMessageBox.critical(self, "Error", "Failed to load video.")
                 return
             self.reset_timers()
-            self.timer.start(24)
             self.status_label.setText(f"Status: Loaded video {os.path.basename(video_path)}")
+            self.start_button.setEnabled(True)
+            ret, frame = self.cap.read()
+            if ret:
+                self.display_frame(frame)
 
-    def load_yolo_model(self):
-        """Allows the user to load a YOLO model file."""
-        model_path, _ = QFileDialog.getOpenFileName(self, "Select YOLO Model File", "", "Model Files (*.pt)")
-        if model_path:
-            self.yolo_model = YOLO(model_path)
-            model_name = os.path.basename(model_path)
-            self.status_label.setText(f"Status: YOLO model loaded - {model_name}")
-            QMessageBox.information(self, "Success", f"YOLO model loaded: {model_name}")
+    def start_detection(self):
+        """Start detection."""
+        if self.cap is None or not self.cap.isOpened():
+            QMessageBox.critical(self, "Error", "Please load a video first.")
+            return
+
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # Restart video
+        self.reset_timers()
+        fps = int(self.cap.get(cv2.CAP_PROP_FPS))
+        self.timer.start(1000 // fps if fps > 0 else 40)
+        self.status_label.setText("Status: Detection in progress...")
+
     def update_frame(self):
         """Process each frame for YOLO detection, motion tracking, and fall classification."""
         ret, frame = self.cap.read()
@@ -141,31 +144,32 @@ class BotBrigadeApp(QWidget):
             self.timer.stop()
             self.status_label.setText("Status: Detection complete.")
             self.reset_timers()
+            self.writer.close()  # Close TensorBoard writer when done
             return
 
-        results = self.yolo_model(frame)
+        results = self.yolo_model(frame, conf=0.6)
         detections = results[0].boxes
 
         fall_detected = False
-        for det in detections:
-            # Extract bounding box and class information
+        for i, det in enumerate(detections):
             x1, y1, x2, y2 = map(int, det.xyxy[0])
             conf = float(det.conf[0])
             cls = int(det.cls[0])
             cls_name = self.yolo_model.names[cls]
 
-            # Draw bounding box and label on the frame
             label = f"{cls_name}: {conf:.2f}"
             color = (0, 255, 0) if cls_name != "Fall Detected" else (0, 0, 255)
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
-            # Check for "Fall Detected" class
+            # Log to TensorBoard
+            self.writer.add_scalar("Confidence Scores", conf, global_step=self.cap.get(cv2.CAP_PROP_POS_FRAMES))
+            self.writer.add_text("Detection",f"Frame: {self.cap.get(cv2.CAP_PROP_POS_FRAMES)}, Class: {cls_name}, Confidence: {conf:.2f}", global_step=self.cap.get(cv2.CAP_PROP_POS_FRAMES))
+
             if cls_name == "Fall Detected":
                 fall_detected = True
                 self.current_bbox = (x1, y1, x2, y2)
 
-        # If fall detected, process motion tracking and classification
         if fall_detected:
             self.track_motion()
             if self.low_movement_detected():

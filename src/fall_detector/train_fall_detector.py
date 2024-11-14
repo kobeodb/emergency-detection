@@ -64,8 +64,6 @@ def detect(video_path: str, weights: str, callback: Callable, stop_event: thread
     cap.release()
     cv2.destroyAllWindows()
 
-
-
 def train_model(weights: str, data_yaml: str, epochs: int = TRAIN_EPOCHS, img_size: int = IMG_SIZE):
     """Train the YOLO model on the dataset."""
     model = initialize_model(weights)

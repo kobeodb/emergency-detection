@@ -18,14 +18,10 @@ def evaluate_model(weights: str, data_yaml: str, img_size: int = 640):
     map50 = metrics.box.map50   # mAP@0.5
     map5095 = metrics.box.map   # mAP@0.5:0.95
 
-    # Calculate approximate accuracy
-    accuracy = (precision * recall) / (precision + recall - precision * recall + 1e-6)
-
     print(f"Precision: {precision:.4f}")
     print(f"Recall: {recall:.4f}")
     print(f"mAP@0.5: {map50:.4f}")
     print(f"mAP@0.5-95: {map5095:.4f}")
-    print(f"Calculated Accuracy: {accuracy:.4f}")
 
 
 
