@@ -30,8 +30,9 @@ class Evaluator:
 
         detected_alerts = []
         frame_count = 0
+        alert_triggered = False
 
-        while cap.isOpened():
+        while cap.isOpened() and not alert_triggered:
             ret, frame = cap.read()
             if not ret:
                 break
@@ -48,9 +49,9 @@ class Evaluator:
                     if keypoints is not None:
                         prediction = self.util.classifier.predict([keypoints])[0]
                         label = self.util.label_encoder.inverse_transform([prediction])[0]
-                        # ToDo: Only generate 1 alert after need help label is displayed
                         if label == "Need help":
                             detected_alerts.append(frame_count)
+                            alert_triggered = True
                             break
 
             frame_count += 1
@@ -64,16 +65,16 @@ evaluator = Evaluator()
 # Run evaluation
 for vid, ground_truth in ground_truth_data.items():
     video_path = f'../needs_for_application/vids/positive/{vid}'
-    alerts_generated = evaluator.run_detection_and_classification(video_path)
+    alerts_generated = evaluator.run_detection_and_classification(video_path) # for now 1 frame (found)
 
     alerts_correct = []
     alerts_missed = []
     alerts_false = []
 
-    for ground_truth_alert_frame in ground_truth:
+    for ground_truth_alert_frame in ground_truth: # 1 frame (ground truth) for now
         found = False
-        for alerted_frame in alerts_generated:
-            if abs((ground_truth_alert_frame + round(MIN_SECS_STATIONARY_BEFORE_ALERT * fps_orig)) - alerted_frame) < (
+        for alerted_frame in alerts_generated: # 1 frame for now (found)
+            if abs((ground_truth_alert_frame + round(MIN_SECS_STATIONARY_BEFORE_ALERT * fps_orig)) - alerted_frame) <= (
                     ACCURACY_IN_SEC_OF_ALERT_REQUIRED * fps_orig):
                 found = True
                 break
@@ -85,7 +86,7 @@ for vid, ground_truth in ground_truth_data.items():
     for alerted_frame in alerts_generated:
         was_alert = False
         for alert_frame in ground_truth:
-            if abs((alert_frame + round(MIN_SECS_STATIONARY_BEFORE_ALERT * fps_orig)) - alerted_frame) < (
+            if abs((alert_frame + round(MIN_SECS_STATIONARY_BEFORE_ALERT * fps_orig)) - alerted_frame) <= (
                     ACCURACY_IN_SEC_OF_ALERT_REQUIRED * fps_orig):
                 was_alert = True
                 break
@@ -121,6 +122,6 @@ for vid in results_df['video']:
 print(f"Precision: {precision}%")
 print(f"Recall: {recall}%")
 print(f"False Alert Rate: {false_alert_rate}%")
-
+print(results_df)
 # Save results
 results_df.to_csv('evaluation_results.csv', index=False)
