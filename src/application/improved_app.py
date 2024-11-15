@@ -15,13 +15,19 @@ from collections import deque
 import time
 from torch.utils.tensorboard import SummaryWriter
 
+# Define the project root directory
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
 
-# Load models
-classifier = joblib.load('../data/models/improved_fall_detection_model_xgb.pkl')
-label_encoder = joblib.load('../data/models/improved_label_encoder.pkl')
+# Load classifier
+classifier_path = os.path.join(project_root, 'src/data/models/improved_fall_detection_model_xgb.pkl')
+classifier = joblib.load(classifier_path)
 
-# Weights
-yolo_weights_path = "../application/needs_for_application/best.pt"
+# Load label encoder
+label_encoder_path = os.path.join(project_root, 'src/data/models/improved_label_encoder.pkl')
+label_encoder = joblib.load(label_encoder_path)
+
+# YOLO weights
+yolo_weights_path = os.path.join(project_root, 'src/application/needs_for_application/best.pt')
 
 # Initialize pose estimation
 mp_pose = mp.solutions.pose
@@ -249,6 +255,32 @@ class BotBrigadeApp(QWidget):
         bytes_per_line = ch * w
         qimg = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
         self.video_label.setPixmap(QPixmap.fromImage(qimg))
+
+
+class DetectionUtility:
+    def __init__(self):
+        self.classifier_path = os.path.join(project_root, 'src/data/models/improved_fall_detection_model_xgb.pkl')
+        self.label_encoder_path = os.path.join(project_root, 'src/data/models/improved_label_encoder.pkl')
+        self.yolo_weights_path = os.path.join(project_root, 'src/application/needs_for_application/best.pt')
+
+        self.classifier = joblib.load(self.classifier_path)
+        self.label_encoder = joblib.load(self.label_encoder_path)
+        self.yolo_model = YOLO(self.yolo_weights_path)
+
+        # Initialize pose estimation
+        self.mp_pose = mp.solutions.pose
+        self.pose = self.mp_pose.Pose(static_image_mode=False)
+
+    def extract_keypoints(self, frame):
+        """Extract pose keypoints using MediaPipe Pose."""
+        results = self.pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        if results.pose_landmarks:
+            keypoints = np.array([[lm.x, lm.y, lm.z] for lm in results.pose_landmarks.landmark]).flatten()
+            if len(keypoints) < 104:
+                keypoints = np.pad(keypoints, (0, 104 - len(keypoints)), constant_values=np.nan)
+            return keypoints
+        return np.full(104, np.nan)
+
 
 
 if __name__ == "__main__":

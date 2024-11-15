@@ -12,7 +12,7 @@ with open('ground_truth.json', 'r') as f:
 
 # Constants for evaluation
 MIN_SECS_STATIONARY_BEFORE_ALERT = 4
-ACCURACY_IN_SEC_OF_ALERT_REQUIRED = 1
+ACCURACY_IN_SEC_OF_ALERT_REQUIRED = 4
 fps_orig = 30
 
 # Initialize results DataFrame
@@ -43,11 +43,12 @@ class Evaluator:
                 x1, y1, x2, y2 = map(int, det.xyxy[0])
                 cls_name = self.util.yolo_model.names[int(det.cls[0])]
 
-                if cls_name == "Person":
+                if cls_name == "Fall Detected":
                     keypoints = self.util.extract_keypoints(frame[y1:y2, x1:x2])
                     if keypoints is not None:
                         prediction = self.util.classifier.predict([keypoints])[0]
                         label = self.util.label_encoder.inverse_transform([prediction])[0]
+                        # ToDo: Only generate 1 alert after need help label is displayed
                         if label == "Need help":
                             detected_alerts.append(frame_count)
                             break
@@ -69,17 +70,17 @@ for vid, ground_truth in ground_truth_data.items():
     alerts_missed = []
     alerts_false = []
 
-    for alert_frame in ground_truth:
+    for ground_truth_alert_frame in ground_truth:
         found = False
         for alerted_frame in alerts_generated:
-            if abs((alert_frame + round(MIN_SECS_STATIONARY_BEFORE_ALERT * fps_orig)) - alerted_frame) < (
+            if abs((ground_truth_alert_frame + round(MIN_SECS_STATIONARY_BEFORE_ALERT * fps_orig)) - alerted_frame) < (
                     ACCURACY_IN_SEC_OF_ALERT_REQUIRED * fps_orig):
                 found = True
                 break
         if found:
-            alerts_correct.append(alert_frame)
+            alerts_correct.append(ground_truth_alert_frame)
         else:
-            alerts_missed.append(alert_frame)
+            alerts_missed.append(ground_truth_alert_frame)
 
     for alerted_frame in alerts_generated:
         was_alert = False
@@ -108,6 +109,7 @@ tot_found = sum(len(row['found']) for _, row in results_df.iterrows())
 tot_correct = sum(len(row['correct']) for _, row in results_df.iterrows())
 tot_missed = sum(len(row['missed']) for _, row in results_df.iterrows())
 tot_false = sum(len(row['false']) for _, row in results_df.iterrows())
+
 
 recall = round((tot_correct / tot_truth) * 100, 2) if tot_truth > 0 else None
 precision = round((tot_correct / tot_found) * 100, 2) if tot_found > 0 else None

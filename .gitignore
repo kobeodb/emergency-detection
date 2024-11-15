@@ -9,6 +9,7 @@
 *.pyc
 .DS_Store
 local/
-
+src/application/runs/*
+runs/*
 
 
