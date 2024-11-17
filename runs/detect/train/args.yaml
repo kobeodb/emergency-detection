@@ -2,7 +2,7 @@ task: detect
 mode: train
 model: /Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/weights/yolo11n.pt
 data: /Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/data.yaml
-epochs: 10
+epochs: 20
 time: null
 patience: 100
 batch: 16
@@ -10,13 +10,13 @@ imgsz: 640
 save: true
 save_period: -1
 cache: false
-device: null
+device: mps:0
 workers: 8
 project: null
 name: train
 exist_ok: false
 pretrained: true
-optimizer: auto
+optimizer: SGD
 verbose: true
 seed: 0
 deterministic: true
@@ -72,7 +72,7 @@ workspace: 4
 nms: false
 lr0: 0.01
 lrf: 0.01
-momentum: 0.937
+momentum: 0.9
 weight_decay: 0.0005
 warmup_epochs: 3.0
 warmup_momentum: 0.8

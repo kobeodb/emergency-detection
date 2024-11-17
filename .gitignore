@@ -11,5 +11,6 @@
 local/
 src/application/runs/*
 runs/*
-
+/src/data/transfer_data/*
+/src/data/dataset2/*
 
