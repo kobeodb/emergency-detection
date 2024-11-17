@@ -27,7 +27,8 @@ label_encoder_path = os.path.join(project_root, 'src/data/models/improved_label_
 label_encoder = joblib.load(label_encoder_path)
 
 # YOLO weights
-yolo_weights_path = os.path.join(project_root, 'src/application/needs_for_application/best.pt')
+# yolo_weights_path = os.path.join(project_root, 'src/application/needs_for_application/weights/best.pt')
+yolo_weights_path = os.path.join(project_root, 'runs/detect/train/weights/best.pt')
 
 # Initialize pose estimation
 mp_pose = mp.solutions.pose
@@ -169,8 +170,8 @@ class BotBrigadeApp(QWidget):
             cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
             # Log to TensorBoard
-            self.writer.add_scalar("Confidence Scores", conf, global_step=self.cap.get(cv2.CAP_PROP_POS_FRAMES))
-            self.writer.add_text("Detection",f"Frame: {self.cap.get(cv2.CAP_PROP_POS_FRAMES)}, Class: {cls_name}, Confidence: {conf:.2f}", global_step=self.cap.get(cv2.CAP_PROP_POS_FRAMES))
+            # self.writer.add_scalar("Confidence Scores", conf, global_step=self.cap.get(cv2.CAP_PROP_POS_FRAMES))
+            # self.writer.add_text("Detection",f"Frame: {self.cap.get(cv2.CAP_PROP_POS_FRAMES)}, Class: {cls_name}, Confidence: {conf:.2f}", global_step=self.cap.get(cv2.CAP_PROP_POS_FRAMES))
 
             if cls_name == "Fall Detected":
                 fall_detected = True
@@ -261,7 +262,7 @@ class DetectionUtility:
     def __init__(self):
         self.classifier_path = os.path.join(project_root, 'src/data/models/improved_fall_detection_model_xgb.pkl')
         self.label_encoder_path = os.path.join(project_root, 'src/data/models/improved_label_encoder.pkl')
-        self.yolo_weights_path = os.path.join(project_root, 'src/application/needs_for_application/best.pt')
+        self.yolo_weights_path = os.path.join(project_root, 'runs/detect/train/weights/best.pt')
 
         self.classifier = joblib.load(self.classifier_path)
         self.label_encoder = joblib.load(self.label_encoder_path)

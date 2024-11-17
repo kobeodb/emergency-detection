@@ -1,10 +1,16 @@
 # Filename: data.yaml
 
-train: "../dataset/train/images"
-val: "../dataset/val/images"
-test: "../dataset/test/images"
+#train: "../dataset/train/images"
+#val: "../dataset/valid/images"
+#test: "../dataset/test/images"
+#
+#nc: 4
+#names: ['Fall Detected', 'Not Fall', 'Sitting', 'Walking']
 
-nc: 4
-names: ['Fall Detected', 'Not Fall', 'Sitting', 'Walking']
 
+train: "../dataset2/train/images"
+val: "../dataset2/valid/images"
+#test: "../transfer_data_2/test/images"
 
+nc: 2
+names: ['Fall Detected', 'Not Fall']
