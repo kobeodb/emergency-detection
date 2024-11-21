@@ -1,11 +1,9 @@
-from turtledemo.penrose import start
 import mediapipe as mp
 import cv2
 import torch
 import numpy as np
 import time
 import yaml
-from sympy.physics.secondquant import wicks
 from ultralytics import YOLO
 from src.models.classifiers.classifier import SingleFrameClassifier
 
@@ -192,4 +190,4 @@ class EmergencyDetection:
 
 if __name__ == "__main__":
     system = EmergencyDetection('../../config/config.yaml', '../models/classifiers/best_model.pth')
-    system.process_video('../data/test_videos/simulation_chantier_2.mp4')
+    system.process_video('../data/pipeline_eval_data/test_videos/simulation_chantier_2.mp4')

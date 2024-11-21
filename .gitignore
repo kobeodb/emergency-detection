@@ -5,4 +5,6 @@ venv
 /src/data/classifier_data/*
 /src/data/detection_data/*
 /src/data/weights/*
-
+/src/models/metrics/__pycache__/*
+/src/pipeline/__pycache__/*
+/src/models/classifiers/__pycache__/*

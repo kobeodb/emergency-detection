@@ -1,7 +1,5 @@
 import time
 from pathlib import Path
-from turtledemo.penrose import start
-
 import yaml
 import json
 import pandas as pd
@@ -137,5 +135,5 @@ class EvaluationTable:
 
 
 if __name__ == '__main__':
-    evaluator = EvaluationTable('../../../config/config.yaml', '../../data/test_videos')
+    evaluator = EvaluationTable('../../../config/config.yaml', '../../data/pipeline_eval_data/test_videos')
     evaluator.print_results()
