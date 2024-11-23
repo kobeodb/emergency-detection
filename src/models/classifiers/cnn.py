@@ -12,15 +12,6 @@ from absl import logging
 import os
 import warnings
 
-# Suppress TensorFlow warnings
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
-# Suppress Mediapipe warnings
-logging.set_verbosity(logging.FATAL)
-
-# Suppress PyTorch warnings
-warnings.filterwarnings("ignore", category=UserWarning)
-
 
 class FallImageDataset(Dataset):
     def __init__(self, config, split='train'):
@@ -30,8 +21,6 @@ class FallImageDataset(Dataset):
         self.data_dir = Path(config['classifier_data'][f'{split}_path'])
 
         self.samples = self._load_samples()
-
-        self.pose = None
 
     def _load_samples(self):
         samples = []
@@ -57,76 +46,57 @@ class FallImageDataset(Dataset):
         return len(self.samples)
 
     def __getitem__(self, idx):
-        if self.pose is None:
-            self.pose = mp.solutions.pose.Pose(
-                static_image_mode=True,
-                model_complexity=self.config['model']['keypoint_extractor']['complexity'],
-                min_detection_confidence=self.config['model']['keypoint_extractor']['min_confidence']
-            )
-
         sample = self.samples[idx]
         image = cv2.imread(str(sample['image_path']))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = cv2.resize(image, (self.config['model']['classifier']['input_size'], self.config['model']['classifier']['input_size']))
+        image = image / 255.0
+        image = np.transpose(image, (2, 0, 1))
 
-        results = self.pose.process(image)
-
-        if not results.pose_landmarks:  # type: ignore
-            return {
-                'keypoints': torch.zeros(33, 2),
-                'label': torch.tensor(sample['label'], dtype=torch.float32),
-                'valid': False
-            }
-
-        keypoints = np.array([[lm.x * image.shape[1], lm.y * image.shape[0]] for lm in
-                              results.pose_landmarks.landmark])  # type: ignore
+        label = torch.tensor(sample['label'], dtype=torch.float32)
 
         return {
-            'keypoints': torch.tensor(keypoints, dtype=torch.float32),
-            'label': torch.tensor(sample['label'], dtype=torch.float32),
-            'valid': True
+            'image': torch.tensor(image, dtype=torch.float32),
+            'label': label
         }
 
 
-class SingleFrameClassifier(nn.Module):
+class CNN(nn.Module):
     def __init__(self, config):
         super().__init__()
 
-        self.input_size = config['model']['classifier']['input_size']
-        self.num_keypoints = 33
+        input_size = config['model']['classifier']['input_size']
         hidden_size = config['model']['classifier']['hidden_size']
         dropout = config['model']['classifier']['dropout']
-        kernel_size = config['model']['classifier']['kernel_size']
 
-        self.conv_layers = nn.Sequential(
-            # first layer
-            nn.Conv1d(self.input_size, hidden_size, kernel_size, padding=1),
-            nn.BatchNorm1d(hidden_size),
+        self.cnn = nn.Sequential(
+            nn.Conv2d(3, hidden_size, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(hidden_size),
             nn.ReLU(),
-            nn.Dropout(dropout),
+            nn.MaxPool2d(2, 2),
 
-            #second layer
-            nn.Conv1d(hidden_size, hidden_size * 2, kernel_size, padding=1),
-            nn.BatchNorm1d(hidden_size * 2),
+            nn.Conv2d(hidden_size, hidden_size * 2, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(hidden_size * 2),
             nn.ReLU(),
-            nn.Dropout(dropout),
+            nn.MaxPool2d(2, 2),
 
-            #third layer
-            nn.Conv1d(hidden_size * 2, hidden_size * 4, kernel_size, padding=1),
-            nn.BatchNorm1d(hidden_size * 4),
+            nn.Conv2d(hidden_size * 2, hidden_size * 4, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(hidden_size * 4),
             nn.ReLU(),
-            nn.Dropout(dropout),
+            nn.MaxPool2d(2, 2)
         )
 
         self.classifier = nn.Sequential(
-            nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
-            nn.Linear(hidden_size * 4, 1),
+            nn.Linear((input_size // 8) * (input_size // 8) * hidden_size * 4, 128),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(128, 1),
             nn.Sigmoid()
         )
 
     def forward(self, x):
-        x = x.transpose(1, 2)
-        x = self.conv_layers(x)
+        x = self.cnn(x)
         x = self.classifier(x)
         return x
 
@@ -138,7 +108,7 @@ class ClassifierTrainer:
 
         self.device = self.config['system']['device']
 
-        self.classifier = SingleFrameClassifier(self.config).to(self.device)
+        self.classifier = CNN(self.config).to(self.device)
 
         self.optimizer = torch.optim.Adam(
             self.classifier.parameters(),
@@ -173,15 +143,11 @@ class ClassifierTrainer:
         all_labels = []
 
         for batch in tqdm(self.train_loader, desc="Training"):
-            valid_mask = batch['valid']
-            if not valid_mask.any():
-                continue
-
-            keypoints = batch['keypoints'].to(self.device)
+            images = batch['image'].to(self.device)
             labels = batch['label'].to(self.device)
 
             self.optimizer.zero_grad()
-            outputs = self.classifier(keypoints)
+            outputs = self.classifier(images)
             loss = self.criterion(outputs, labels.unsqueeze(1))
 
             loss.backward()
