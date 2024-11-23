@@ -2,6 +2,7 @@ import torch
 from ultralytics import YOLO
 import yaml
 
+
 class FallDetectorTrainer:
     def __init__(self, config_path):
         with open(config_path) as f:
@@ -40,6 +41,7 @@ class FallDetectorTrainer:
 
         metrics = self.model.val(**val_args)
         return metrics
+
 
 if __name__ == "__main__":
     trainer = FallDetectorTrainer('../../../config/config.yaml')

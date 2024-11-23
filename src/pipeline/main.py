@@ -1,4 +1,3 @@
-import mediapipe as mp
 import cv2
 import torch
 import numpy as np
@@ -93,7 +92,7 @@ class EmergencyDetection:
                     frame_tensor = self.preprocess_frame(frame, bbox)
                     emergency_prob = self.classifier(frame_tensor).item()
                     print(f"Emergency probability: {emergency_prob}")
-                if emergency_prob <= 0.5:  # >
+                if emergency_prob > 0.5:  # Adjust threshold if necessary
                     print(f"Emergency confirmed at {current_time:.2f}s with confidence {emergency_prob:.2f}")
                     self.state = 'EMERGENCY'
                     return {
@@ -129,27 +128,12 @@ class EmergencyDetection:
         x1, y1, x2, y2 = map(int, bbox)
         person_crop = frame[y1:y2, x1:x2]
 
-        mp_pose = mp.solutions.pose
-        with mp_pose.Pose(
-                static_image_mode=True,
-                model_complexity=1,
-        ) as pose:
-            rgb_frame = cv2.cvtColor(person_crop, cv2.COLOR_BGR2RGB)
-            results = pose.process(rgb_frame)
+        # Resize and normalize the cropped image
+        resized_crop = cv2.resize(person_crop, (224, 224))  # Adjust to match your CNN input size
+        crop_tensor = torch.tensor(resized_crop, dtype=torch.float32).permute(2, 0, 1) / 255.0  # Normalize to [0, 1]
+        crop_tensor = crop_tensor.unsqueeze(0).to(self.device)  # Add batch dimension and move to device
 
-            if not results.pose_landmarks: #type: ignore
-                return None
-
-            h, w = person_crop.shape[:2]
-            keypoints = np.array([[lm.x * w, lm.y * h] for lm in results.pose_landmarks.landmark]) #type: ignore
-
-            keypoints[:, 0] /= w
-            keypoints[:, 1] /= h
-
-            keypoints_tensor = torch.tensor(keypoints, dtype=torch.float32)
-            keypoints_tensor = keypoints_tensor.unsqueeze(0)
-
-            return keypoints_tensor
+        return crop_tensor
 
     def _visualize_frame(self, frame, results):
         if results['bbox'] is not None:
@@ -157,10 +141,10 @@ class EmergencyDetection:
             confidence = results.get('confidence', 0)
 
             colors = {
-                'MONITORING': (0, 255, 0),  #green
-                'FALL_DETECTED': (0, 165, 255),  #orange
-                'MOTION_TRACKING': (0, 255, 255),  #yellow
-                'EMERGENCY': (0, 0, 255) #red
+                'MONITORING': (0, 255, 0),  # Green
+                'FALL_DETECTED': (0, 165, 255),  # Orange
+                'MOTION_TRACKING': (0, 255, 255),  # Yellow
+                'EMERGENCY': (0, 0, 255)  # Red
             }
 
             color = colors[self.state]
