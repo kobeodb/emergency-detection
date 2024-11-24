@@ -22,7 +22,7 @@ class EvaluationTable:
             self.ground_truth = json.load(f)
 
 
-        self.FRAME_THRESHOLD = 210 #frames, given 30 frames per second, this should equal to 7 seconds
+        self.FRAME_THRESHOLD = 180 #frames, given 30 frames per second, this should equal to 6 seconds
         self.results_df = pd.DataFrame(columns=['video', 'truth', 'found', 'correct', 'false', 'missed'])
 
     def run_inference(self, video_path):

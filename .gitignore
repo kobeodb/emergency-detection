@@ -10,3 +10,4 @@ venv
 /src/models/classifiers/__pycache__/*
 /config/*
 src/models/classifiers/best_model.pth
+src/data/pipeline_eval_data/test_videos/*
