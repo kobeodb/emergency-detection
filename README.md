@@ -1,5 +1,13 @@
 # Bot Brigade - Eyes4Resque
 
+## How to run the inference
+- clone this repository
+- install the requirements
+- make sure the config.yaml file contains the right paths
+- navigate to src/pipeline/inference.py
+- at the bottom of this file make sure the paths are correct and choose a video you want to run the inference on.
+- run this file.
+
 ## Components used
 - Fine-Tuned YOLOv11 weights
 - Implemented Motion Tracking for post fall behavior
