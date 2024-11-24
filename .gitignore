@@ -9,3 +9,4 @@ venv
 /src/pipeline/__pycache__/*
 /src/models/classifiers/__pycache__/*
 /config/*
+src/models/classifiers/best_model.pth

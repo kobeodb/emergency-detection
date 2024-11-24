@@ -110,12 +110,12 @@ class ClassifierTrainer:
             self.config = yaml.safe_load(f)
 
         # Comet ML Experiment
-        self.experiment = Experiment(
-            api_key="Mo41H6DYUmGophP0c4VRLAo7Z",
-            project_name="general",
-            workspace="mxttywxtty"
-        )
-        self.experiment.log_parameters(self.config)
+        # self.experiment = Experiment(
+        #     api_key="Mo41H6DYUmGophP0c4VRLAo7Z",
+        #     project_name="general",
+        #     workspace="mxttywxtty"
+        # )
+        # self.experiment.log_parameters(self.config)
 
         self.device = self.config['system']['device']
 
@@ -173,7 +173,7 @@ class ClassifierTrainer:
         metrics = calculate_metrics(all_preds_binary, all_labels)
         metrics['loss'] = total_loss / len(self.train_loader)
 
-        self.experiment.log_metrics(metrics, step=None)
+        # self.experiment.log_metrics(metrics, step=None)
 
         return metrics
 
@@ -191,7 +191,7 @@ class ClassifierTrainer:
             if train_metrics['loss'] < best_val_loss:
                 best_val_loss = train_metrics['loss']
                 self.save_checkpoint('best_model.pth')
-                self.experiment.log_model("best_model", "best_model.pth")
+                # self.experiment.log_model("best_model", "best_model.pth")
 
     def save_checkpoint(self, filename):
         checkpoint = {
