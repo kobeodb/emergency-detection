@@ -1,9 +1,11 @@
-import cv2
-import torch
-import numpy as np
 import time
+
+import cv2
+import numpy as np
+import torch
 import yaml
 from ultralytics import YOLO
+import torch.nn.functional as func
 from src.models.classifiers.cnn import CNN
 
 
@@ -14,9 +16,11 @@ class EmergencyDetection:
 
         self.device = torch.device(self.config['system']['device'])
 
+        # Initialize YOLOv8 for fall detection
         self.fall_detector = YOLO(self.config['model']['detector']['finetuned_weights_path'])
 
-        self.classifier = CNN(self.config)
+        # Load CNN classifier for emergency detection
+        self.classifier = CNN(self.config).to(self.device)
         checkpoint = torch.load(model_path, map_location=self.device)
         self.classifier.load_state_dict(checkpoint['classifier_state_dict'])
         self.classifier.eval()
@@ -25,9 +29,7 @@ class EmergencyDetection:
         self.fall_detection_time = None
         self.motion_tracking_start = None
         self.last_position = None
-        self.motion_threshold = 50  # these are pixels
-
-        self.reset()
+        self.motion_threshold = 50
 
     def reset(self):
         self.state = 'MONITORING'
@@ -57,6 +59,7 @@ class EmergencyDetection:
         cv2.destroyAllWindows()
 
     def process_frame(self, frame, current_time):
+        # Perform YOLO detection
         results = self.fall_detector(frame)
 
         if len(results[0].boxes) > 0:
@@ -66,15 +69,13 @@ class EmergencyDetection:
         else:
             return {'state': self.state, 'bbox': None}
 
-        if self.state == 'MONITORING':
-            if fall_detected:
-                self.state = 'FALL_DETECTED'
-                self.fall_detection_time = current_time
-                print(f"Fall detected at {current_time:.2f}s with confidence: {confidence}")
+        if self.state == 'MONITORING' and fall_detected:
+            self.state = 'FALL_DETECTED'
+            self.fall_detection_time = current_time
+            print(f"Fall detected at {current_time:.2f}s with confidence: {confidence}")
 
         elif self.state == 'FALL_DETECTED':
-            wait_time = current_time - self.fall_detection_time
-            if wait_time >= 2.0:
+            if current_time - self.fall_detection_time >= 2.0:
                 self.state = 'MOTION_TRACKING'
                 self.motion_tracking_start = current_time
                 self.last_position = bbox
@@ -85,28 +86,45 @@ class EmergencyDetection:
             has_motion = self.detect_motion(bbox)
 
             if has_motion:
-                self.state = 'MONITORING'
+                self.reset()
                 print(f"Motion detected at {current_time:.2f}s")
             elif elapsed_time >= 4.0:
+                self.classifier.eval()
                 with torch.no_grad():
                     frame_tensor = self.preprocess_frame(frame, bbox)
-                    emergency_prob = self.classifier(frame_tensor).item()
-                    print(f"Emergency probability: {emergency_prob}")
-                if emergency_prob > 0.5:  # Adjust threshold if necessary
-                    print(f"Emergency confirmed at {current_time:.2f}s with confidence {emergency_prob:.2f}")
+                    output = self.classifier(frame_tensor)
+                    emergency_prob = torch.sigmoid(output).item()
+                    print(f"Emergency probability: {emergency_prob:.2f}")
+
+                if emergency_prob >= 0.5:
                     self.state = 'EMERGENCY'
+                    print(f"Emergency confirmed at {current_time:.2f}s with confidence {emergency_prob:.2f}")
                     return {
                         'state': self.state,
                         'confidence': emergency_prob,
                         'bbox': bbox
                     }
-                self.state = 'MONITORING'
+                self.reset()
 
         return {
             'state': self.state,
             'bbox': bbox,
             'confidence': confidence
         }
+
+    def preprocess_frame(self, frame, bbox):
+        x1, y1, x2, y2 = map(int, bbox)
+        person_crop = frame[y1:y2, x1:x2]
+
+        # Resize and normalize the cropped image for CNN
+        crop_tensor = cv2.resize(person_crop, (
+            self.config['model']['classifier']['input_size'],
+            self.config['model']['classifier']['input_size']))
+        crop_tensor = crop_tensor / 255.0
+        crop_tensor = torch.tensor(crop_tensor, dtype=torch.float32).permute(2, 0, 1)
+        crop_tensor = crop_tensor.unsqueeze(0).to(self.device)  # Add batch dimension
+
+        return crop_tensor
 
     def detect_motion(self, current_bbox):
         if self.last_position is None:
@@ -124,27 +142,16 @@ class EmergencyDetection:
         self.last_position = current_bbox
         return distance > self.motion_threshold
 
-    def preprocess_frame(self, frame, bbox):
-        x1, y1, x2, y2 = map(int, bbox)
-        person_crop = frame[y1:y2, x1:x2]
-
-        # Resize and normalize the cropped image
-        resized_crop = cv2.resize(person_crop, (224, 224))  # Adjust to match your CNN input size
-        crop_tensor = torch.tensor(resized_crop, dtype=torch.float32).permute(2, 0, 1) / 255.0  # Normalize to [0, 1]
-        crop_tensor = crop_tensor.unsqueeze(0).to(self.device)  # Add batch dimension and move to device
-
-        return crop_tensor
-
     def _visualize_frame(self, frame, results):
         if results['bbox'] is not None:
             x1, y1, x2, y2 = map(int, results['bbox'])
             confidence = results.get('confidence', 0)
 
             colors = {
-                'MONITORING': (0, 255, 0),  # Green
-                'FALL_DETECTED': (0, 165, 255),  # Orange
-                'MOTION_TRACKING': (0, 255, 255),  # Yellow
-                'EMERGENCY': (0, 0, 255)  # Red
+                'MONITORING': (0, 255, 0),
+                'FALL_DETECTED': (0, 165, 255),
+                'MOTION_TRACKING': (0, 255, 255),
+                'EMERGENCY': (0, 0, 255)
             }
 
             color = colors[self.state]
@@ -153,18 +160,16 @@ class EmergencyDetection:
 
             cv2.putText(frame, f"State: {self.state}", (x1, y1 - 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-            cv2.putText(frame, f"Confidence: {confidence}", (x1, y1 - 10),
+            cv2.putText(frame, f"Confidence: {confidence:.2f}", (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
             if self.state == 'FALL_DETECTED':
-                wait_time = time.time() - self.fall_detection_time
-                cv2.putText(frame, f"Wait Time: {wait_time:.1f}s", (x1, y1 - 50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                cv2.putText(frame, f"Wait Time: {time.time() - self.fall_detection_time:.1f}s",
+                            (x1, y1 - 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
             elif self.state == 'MOTION_TRACKING':
-                track_time = time.time() - self.motion_tracking_start
-                cv2.putText(frame, f"Track Time: {track_time:.1f}s", (x1, y1 - 50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                cv2.putText(frame, f"Track Time: {time.time() - self.motion_tracking_start:.1f}s",
+                            (x1, y1 - 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
             elif self.state == 'EMERGENCY':
                 cv2.putText(frame, f"EMERGENCY DETECTED", (x1, y1 - 50),

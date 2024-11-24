@@ -49,7 +49,9 @@ class FallImageDataset(Dataset):
         sample = self.samples[idx]
         image = cv2.imread(str(sample['image_path']))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = cv2.resize(image, (self.config['model']['classifier']['input_size'], self.config['model']['classifier']['input_size']))
+        image = cv2.resize(image, (
+            self.config['model']['classifier']['input_size'],
+            self.config['model']['classifier']['input_size']))
         image = image / 255.0
         image = np.transpose(image, (2, 0, 1))
 
