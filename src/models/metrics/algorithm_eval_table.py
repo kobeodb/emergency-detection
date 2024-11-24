@@ -4,7 +4,8 @@ import yaml
 import json
 import pandas as pd
 import cv2
-from src.pipeline.inference import EmergencyDetection
+# from src.pipeline.inference import EmergencyDetection
+from src.pipeline.main import EmergencyDetection
 
 class EvaluationTable:
     def __init__(self, config_path, video_dir):
