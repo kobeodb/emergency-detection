@@ -10,3 +10,4 @@ pydantic~=2.9.2
 tqdm~=4.66.3
 scikit-learn~=1.5.2
 absl-py~=2.1.0
+PyQt5~=5.15.11
