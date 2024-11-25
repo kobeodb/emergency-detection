@@ -1,3 +1,4 @@
+import dotenv
 from comet_ml import Experiment
 import torch
 import torch.nn as nn
@@ -7,11 +8,8 @@ from pathlib import Path
 import yaml
 from tqdm import tqdm
 import cv2
-import mediapipe as mp
-from src.models.metrics.metrics import calculate_metrics
-from absl import logging
+from src.data.metrics.metrics import calculate_metrics
 import os
-import warnings
 
 
 class FallImageDataset(Dataset):
@@ -110,10 +108,11 @@ class ClassifierTrainer:
             self.config = yaml.safe_load(f)
 
         # Comet ML Experiment
+        dotenv.load_dotenv()
         self.experiment = Experiment(
-            api_key="Mo41H6DYUmGophP0c4VRLAo7Z",
-            project_name="general",
-            workspace="mxttywxtty"
+            api_key=os.environ.get("COMET_ML_API_KEY"),
+            project_name=os.environ.get("COMET_ML_PROJECT_NAME"),
+            workspace=os.environ.get("COMET_ML_WORKSPACE_NAME")
         )
         self.experiment.log_parameters(self.config)
 
@@ -190,7 +189,7 @@ class ClassifierTrainer:
 
             if train_metrics['loss'] < best_val_loss:
                 best_val_loss = train_metrics['loss']
-                self.save_checkpoint('best_model.pth')
+                self.save_checkpoint('../../data/weights/best_model.pth')
                 self.experiment.log_model("best_model", "best_model.pth")
 
     def save_checkpoint(self, filename):
@@ -203,5 +202,5 @@ class ClassifierTrainer:
 
 
 if __name__ == "__main__":
-    trainer = ClassifierTrainer('../../../config/config.yaml')
+    trainer = ClassifierTrainer('../../../config.yaml')
     trainer.train()

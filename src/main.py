@@ -5,7 +5,6 @@ import numpy as np
 import torch
 import yaml
 from ultralytics import YOLO
-import torch.nn.functional as func
 from src.models.classifiers.cnn import CNN
 
 
@@ -40,7 +39,6 @@ class EmergencyDetection:
     def process_video(self, video_path):
         cap = cv2.VideoCapture(video_path)
         start_time = time.time()
-
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
@@ -177,5 +175,5 @@ class EmergencyDetection:
 
 
 if __name__ == "__main__":
-    system = EmergencyDetection('../../config/config.yaml', '../models/classifiers/best_model.pth')
-    system.process_video('../data/pipeline_eval_data/test_videos/simulation_chantier_2.mp4')
+    system = EmergencyDetection('../config.yaml', './data/weights/best_model.pth')
+    system.process_video('./data/evaluation_data/test_videos/468097525_8450343088424914_2304509395700581796_n.mp4')

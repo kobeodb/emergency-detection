@@ -135,5 +135,5 @@ class EvaluationTable:
 
 
 if __name__ == '__main__':
-    evaluator = EvaluationTable('../../../config/config.yaml', '../../data/pipeline_eval_data/test_videos')
+    evaluator = EvaluationTable('../../../config.yaml', '../../data/evaluation_data/test_videos')
     evaluator.print_results()

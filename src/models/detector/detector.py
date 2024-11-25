@@ -26,7 +26,7 @@ class FallDetectorTrainer:
             'optimizer': 'Adam'
         }
 
-        results = self.model.train(**train_args)
+        self.model.train(**train_args)
 
     def validate(self):
         """
@@ -44,5 +44,5 @@ class FallDetectorTrainer:
 
 
 if __name__ == "__main__":
-    trainer = FallDetectorTrainer('../../../config/config.yaml')
+    trainer = FallDetectorTrainer('../../../config.yaml')
     trainer.train()

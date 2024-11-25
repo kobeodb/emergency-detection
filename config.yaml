@@ -13,10 +13,6 @@ model:
     dropout: 0.5
     model_path: "C:/Users/mathi/Documents/GitHub/ai-bot-brigade/src/models/classifiers/best_model.pth"
 
-  keypoint_extractor:
-    complexity: 1
-    min_confidence: 0.5
-
 training_detector:
   epochs: 100
   learning_rate: 0.001
@@ -42,5 +38,5 @@ system:
   num_workers: 4
 
 evaluation:
-  ground_truth_path: "C:/Users/mathi/Documents/GitHub/ai-bot-brigade/src/data/pipeline_eval_data/ground_truth.json"
+  ground_truth_path: "C:/Users/mathi/Documents/GitHub/ai-bot-brigade/src/data/evaluation_data/ground_truth.json"
   results_path: "C:/Users/mathi/Documents/GitHub/ai-bot-brigade/src/models/metrics/evaluation_results.csv"
