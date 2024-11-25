@@ -178,4 +178,4 @@ class EmergencyDetection:
 
 if __name__ == "__main__":
     system = EmergencyDetection('../../config/config.yaml', '../models/classifiers/best_model.pth')
-    system.process_video('../data/pipeline_eval_data/test_videos/negative_6_stumbling_but_getting_back_up.mp4')
+    system.process_video('../data/pipeline_eval_data/test_videos/positive_1.mp4')
