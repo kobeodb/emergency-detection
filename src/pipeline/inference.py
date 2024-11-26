@@ -93,7 +93,7 @@ class EmergencyDetection:
                 with torch.no_grad():
                     frame_tensor = self.preprocess_frame(frame, bbox)
                     output = self.classifier(frame_tensor)
-                    emergency_prob = torch.sigmoid(output).item()
+                    emergency_prob = output.item()
                     print(f"Emergency probability: {emergency_prob:.2f}")
 
                 if emergency_prob >= 0.5:

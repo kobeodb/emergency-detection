@@ -69,29 +69,29 @@ class CNN(nn.Module):
         super().__init__()
 
         input_size = config['model']['classifier']['input_size']
-        hidden_size = config['model']['classifier']['hidden_size']
+        out_channels = config['model']['classifier']['out_channels']
         dropout = config['model']['classifier']['dropout']
 
         self.cnn = nn.Sequential(
-            nn.Conv2d(3, hidden_size, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(hidden_size),
+            nn.Conv2d(3, out_channels, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
 
-            nn.Conv2d(hidden_size, hidden_size * 2, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(hidden_size * 2),
+            nn.Conv2d(out_channels, out_channels * 2, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(out_channels * 2),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
 
-            nn.Conv2d(hidden_size * 2, hidden_size * 4, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(hidden_size * 4),
+            nn.Conv2d(out_channels * 2, out_channels * 4, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(out_channels * 4),
             nn.ReLU(),
             nn.MaxPool2d(2, 2)
         )
 
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear((input_size // 8) * (input_size // 8) * hidden_size * 4, 128),
+            nn.Linear((input_size // 8) * (input_size // 8) * out_channels * 4, 128),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(128, 1),
