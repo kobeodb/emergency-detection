@@ -12,10 +12,6 @@ class FallDetectorTrainer:
         self.model = YOLO(self.config['model']['detector']['weights_path'])
 
     def train(self):
-        """
-        Train yolo model
-        """
-
         train_args = {
             'data': 'data.yaml',
             'epochs': self.config['training_detector']['epochs'],
@@ -29,10 +25,6 @@ class FallDetectorTrainer:
         results = self.model.train(**train_args)
 
     def validate(self):
-        """
-        Validate yolo model
-        """
-
         val_args = {
             'data': self.config['model']['detector']['data_yaml_path'],
             'imgsz': self.config['fall_detection_data']['img_size'],
