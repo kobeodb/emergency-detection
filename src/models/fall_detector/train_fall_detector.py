@@ -9,6 +9,7 @@ class FallDetectorTrainer:
             self.config = yaml.safe_load(f)
 
         self.device = torch.device(self.config['system']['device'])
+        print(f"PyTorch is using device: {self.device}")
         self.model = YOLO(self.config['model']['detector']['weights_path'])
 
     def train(self):
@@ -19,9 +20,12 @@ class FallDetectorTrainer:
             'device': self.config['system']['device'],
             'project': 'runs/train',
             'name': 'Fall Detector',
-            'optimizer': 'Adam'
+            'optimizer': 'auto',
+            'lr0': 0.001,
+            'lrf': 0.1,
+            'batch': 8,
+            'patience': 10
         }
-
         results = self.model.train(**train_args)
 
     def validate(self):

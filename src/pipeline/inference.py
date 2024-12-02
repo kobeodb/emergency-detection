@@ -29,7 +29,7 @@ class EmergencyDetection:
         self.fall_detection_time = None
         self.motion_tracking_start = None
         self.last_position = None
-        self.motion_threshold = 50
+        self.motion_threshold = 50 #frames
 
     def reset(self):
         self.state = 'MONITORING'
@@ -65,7 +65,10 @@ class EmergencyDetection:
         if len(results[0].boxes) > 0:
             bbox = results[0].boxes.xyxy[0].cpu().numpy()
             confidence = results[0].boxes[0].conf[0].item()
-            fall_detected = results[0].boxes[0].cls[0].item() == 0
+            fall_detected = results[0].boxes[0].cls[0].item() == 1
+
+            if confidence < 0.5:
+                return {'state': self.state, 'bbox': None}
         else:
             return {'state': self.state, 'bbox': None}
 
@@ -96,7 +99,7 @@ class EmergencyDetection:
                     emergency_prob = output.item()
                     print(f"Emergency probability: {emergency_prob:.2f}")
 
-                if emergency_prob >= 0.5:
+                if emergency_prob <= 0.5:
                     self.state = 'EMERGENCY'
                     print(f"Emergency confirmed at {current_time:.2f}s with confidence {emergency_prob:.2f}")
                     return {
@@ -178,4 +181,4 @@ class EmergencyDetection:
 
 if __name__ == "__main__":
     system = EmergencyDetection('../../config/config.yaml', '../models/classifiers/best_model.pth')
-    system.process_video('../data/pipeline_eval_data/test_videos/positive_1.mp4')
+    system.process_video('../data/pipeline_eval_data/test_videos/positive_8_falling_away_from_camera.mp4')
