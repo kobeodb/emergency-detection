@@ -1,6 +1,6 @@
-train: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/emergency_detector_kobe_opdebeeck/pythonProject/src/data/detection_data/train/images"
-val: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/emergency_detector_kobe_opdebeeck/pythonProject/src/data/detection_data/valid/images"
-test: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/emergency_detector_kobe_opdebeeck/pythonProject/src/data/detection_data/test/images"
+train: "C:\Users\mathi\OneDrive\Desktop\projects\bot-brigade\src\data\detection_data\train\images"
+val: "C:\Users\mathi\OneDrive\Desktop\projects\bot-brigade\src\data\detection_data\valid\images"
+test: "C:\Users\mathi\OneDrive\Desktop\projects\bot-brigade\src\data\detection_data\test\images"
 
 
 nc: 2

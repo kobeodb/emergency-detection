@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import yaml
 from ultralytics import YOLO
+import torch.nn.functional as func
 from src.models.classifiers.cnn import CNN
 
 
@@ -28,7 +29,8 @@ class EmergencyDetection:
         self.fall_detection_time = None
         self.motion_tracking_start = None
         self.last_position = None
-        self.motion_threshold = 50
+        self.motion_threshold = 50 #  frames
+        self.static_back = None
 
     def reset(self):
         self.state = 'MONITORING'
@@ -39,6 +41,7 @@ class EmergencyDetection:
     def process_video(self, video_path):
         cap = cv2.VideoCapture(video_path)
         start_time = time.time()
+
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
@@ -63,7 +66,10 @@ class EmergencyDetection:
         if len(results[0].boxes) > 0:
             bbox = results[0].boxes.xyxy[0].cpu().numpy()
             confidence = results[0].boxes[0].conf[0].item()
-            fall_detected = results[0].boxes[0].cls[0].item() == 0
+            fall_detected = results[0].boxes[0].cls[0].item() == 1
+
+            if confidence < 0.5:
+                return {'state': self.state, 'bbox': None}
         else:
             return {'state': self.state, 'bbox': None}
 
@@ -81,7 +87,7 @@ class EmergencyDetection:
 
         elif self.state == 'MOTION_TRACKING':
             elapsed_time = current_time - self.motion_tracking_start
-            has_motion = self.detect_motion(bbox)
+            has_motion = self.detect_motion(frame)
 
             if has_motion:
                 self.reset()
@@ -91,7 +97,7 @@ class EmergencyDetection:
                 with torch.no_grad():
                     frame_tensor = self.preprocess_frame(frame, bbox)
                     output = self.classifier(frame_tensor)
-                    emergency_prob = torch.sigmoid(output).item()
+                    emergency_prob = output.item()
                     print(f"Emergency probability: {emergency_prob:.2f}")
 
                 if emergency_prob >= 0.5:
@@ -124,21 +130,25 @@ class EmergencyDetection:
 
         return crop_tensor
 
-    def detect_motion(self, current_bbox):
-        if self.last_position is None:
-            self.last_position = current_bbox
-            return True
+    def detect_motion(self, frame):
+        # Convert frame to grayscale and apply Gaussian blur
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (15, 15), 0)  # Reduced blur kernel size
 
-        current_center = [(current_bbox[0] + current_bbox[2]) / 2,
-                          (current_bbox[1] + current_bbox[3]) / 2]
-        last_center = [(self.last_position[0] + self.last_position[2]) / 2,
-                       (self.last_position[1] + self.last_position[3]) / 2]
+        # Initialize last_position if None
+        if self.static_back is None:
+            self.static_back = gray
+            return False
 
-        distance = np.sqrt((current_center[0] - last_center[0]) ** 2 +
-                           (current_center[1] - last_center[1]) ** 2)
+        diff_frame = cv2.absdiff(self.static_back, gray)
+        thresh_frame = cv2.threshold(diff_frame, 30, 255, cv2.THRESH_BINARY)[1]
+        thresh_frame = cv2.dilate(thresh_frame, None, iterations=1)
+        cnts, _ = cv2.findContours(thresh_frame.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        self.last_position = current_bbox
-        return distance > self.motion_threshold
+        for contour in cnts:
+            if cv2.contourArea(contour) > 10000:
+                return True
+        return False
 
     def _visualize_frame(self, frame, results):
         if results['bbox'] is not None:
@@ -176,4 +186,4 @@ class EmergencyDetection:
 
 if __name__ == "__main__":
     system = EmergencyDetection('../config.yaml', './data/weights/best_model.pth')
-    system.process_video('./data/evaluation_data/test_videos/468097525_8450343088424914_2304509395700581796_n.mp4')
+    system.process_video('./data/pipeline_eval_data/test_videos/simulation_chantier_2.mp4')
