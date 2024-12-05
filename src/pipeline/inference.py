@@ -5,31 +5,38 @@ import torch
 import yaml
 from ultralytics import YOLO
 from src.models.classifiers.classifier import CNN
+from sort import Sort
 
 
-class EmergencyDetection:
+class EmergencyDetectionSystem:
     def __init__(self, config_path, model_path):
-        with open(config_path) as f:
-            self.config = yaml.safe_load(f)
+        # Load configuration
+        with open(config_path, 'r') as file:
+            self.config = yaml.safe_load(file)
 
         self.device = torch.device(self.config['system']['device'])
 
-        self.fall_detector = YOLO(self.config['model']['detector']['finetuned_weights_path'])
+        # Initialize fall detection model (YOLO)
+        self.fall_detector = YOLO('../data/weights/best.pt')
 
+        # Initialize classifier model
         self.classifier = CNN(self.config).to(self.device)
         checkpoint = torch.load(model_path, map_location=self.device)
         self.classifier.load_state_dict(checkpoint['classifier_state_dict'])
         self.classifier.eval()
 
+        # Initialize SORT tracker
+        self.tracker = Sort()
         self.detection_states = {}
         self.motion_threshold = 50
 
-    def reset_detection(self, bbox):
-        """Reset the state for a specific detection."""
-        if bbox in self.detection_states:
-            del self.detection_states[bbox]
+    def reset_detection_state(self, track_id):
+        """Reset the detection state for a specific track ID."""
+        if track_id in self.detection_states:
+            del self.detection_states[track_id]
 
     def process_video(self, video_path):
+        """Process the video frame by frame."""
         cap = cv2.VideoCapture(video_path)
         start_time = time.time()
 
@@ -41,9 +48,10 @@ class EmergencyDetection:
             current_time = time.time() - start_time
             results = self.process_frame(frame, current_time)
 
-            self._visualize_frame(frame, results)
+            self.visualize_frame(frame, results)
 
-            cv2.imshow('Emergency Detection Pipeline', frame)
+            # Display the frame
+            cv2.imshow('Emergency Detection', frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
@@ -51,151 +59,129 @@ class EmergencyDetection:
         cv2.destroyAllWindows()
 
     def process_frame(self, frame, current_time):
+        """Process a single video frame."""
+        detections = []
         results = self.fall_detector(frame)
 
-        detections = []
-        if len(results[0].boxes) > 0:
-            for box in results[0].boxes:
-                bbox = tuple(box.xyxy.cpu().numpy()[0])
-                confidence = box.conf.item()
-                fall_detected = box.cls.item() == 1
+        for box in results[0].boxes:
+            bbox = box.xyxy[0].tolist()
+            confidence = box.conf.item()
+            if confidence > 0.5:
+                detections.append([*bbox, confidence])
 
-                if confidence >= 0.5:
-                    detections.append({
-                        'bbox': bbox,
-                        'confidence': confidence,
-                        'fall_detected': fall_detected
-                    })
+        tracked_objects = self.tracker.update(np.array(detections))
 
-        for bbox, state_data in self.detection_states.items():
-            print(f"BBOX: {bbox}, Current State: {state_data['state']}, Detection Data: {state_data}")
+        for track in tracked_objects:
+            track_id = int(track[4])
+            bbox = tuple(track[:4])
 
-        for detection in detections:
-            bbox = detection['bbox']
-            confidence = detection['confidence']
-            fall_detected = detection['fall_detected']
-
-            if bbox not in self.detection_states:
-                self.detection_states[bbox] = {
+            if track_id not in self.detection_states:
+                self.detection_states[track_id] = {
                     'state': 'MONITORING',
                     'fall_detection_time': None,
                     'motion_tracking_start': None,
-                    'last_position': None
+                    'last_position': None,
                 }
 
-            state_data = self.detection_states[bbox]
+            state_data = self.detection_states[track_id]
             current_state = state_data['state']
 
+            # State transitions
             if current_state == 'MONITORING':
-                if fall_detected:
+                if self.is_fall_detected(bbox, results):
                     state_data['state'] = 'FALL_DETECTED'
                     state_data['fall_detection_time'] = current_time
-                    print(f"Fall detected for bbox {bbox} at {current_time:.2f}s with confidence: {confidence}")
+                    print(f"Fall detected for Track ID {track_id} at {current_time:.2f}s")
 
             elif current_state == 'FALL_DETECTED':
                 if current_time - state_data['fall_detection_time'] >= 2.0:
                     state_data['state'] = 'MOTION_TRACKING'
                     state_data['motion_tracking_start'] = current_time
                     state_data['last_position'] = bbox
-                    print(f"Starting motion tracking for bbox {bbox} at {current_time:.2f}s")
+                    print(f"Starting motion tracking for Track ID {track_id} at {current_time:.2f}s")
 
             elif current_state == 'MOTION_TRACKING':
                 elapsed_time = current_time - state_data['motion_tracking_start']
                 has_motion = self.detect_motion(bbox, state_data)
 
                 if has_motion:
-                    self.reset_detection(bbox)
-                    print(f"Motion detected for bbox {bbox} at {current_time:.2f}s")
+                    self.reset_detection_state(track_id)
+                    print(f"Motion detected for Track ID {track_id} at {current_time:.2f}s")
                 elif elapsed_time >= 4.0:
-                    self.classifier.eval()
-                    with torch.no_grad():
-                        frame_tensor = self.preprocess_frame(frame, bbox)
-                        output = self.classifier(frame_tensor)
-                        emergency_prob = output.item()
-                        print(f"Emergency probability for bbox {bbox}: {emergency_prob:.2f}")
+                    emergency_prob = self.classify_emergency(frame, bbox)
+                    print(f"Emergency probability for Track ID {track_id}: {emergency_prob:.2f}")
 
                     if emergency_prob <= 0.5:
                         state_data['state'] = 'EMERGENCY'
-                        print(
-                            f"Emergency confirmed for bbox {bbox} at {current_time:.2f}s with confidence {emergency_prob:.2f}")
-                        return {
-                            'state': state_data['state'],
-                            'confidence': emergency_prob,
-                            'bbox': bbox
-                        }
-                    self.reset_detection(bbox)
+                        print(f"Emergency confirmed for Track ID {track_id} at {current_time:.2f}s")
+                    self.reset_detection_state(track_id)
 
-        return {
-            'states': self.detection_states,
-            'detections': detections
-        }
+        return {'states': self.detection_states, 'tracked_objects': tracked_objects}
+
+    def is_fall_detected(self, bbox, results):
+        """Determine if a fall is detected."""
+        # Check if bbox closely matches a detected fall box
+        for box in results[0].boxes:
+            if box.cls.item() == 1:  # Assuming '1' is the class for falls
+                detected_bbox = box.xyxy.cpu().numpy()[0]
+                if np.allclose(detected_bbox, bbox, atol=5):
+                    return True
+        return False
+
+    def classify_emergency(self, frame, bbox):
+        """Classify if a detected fall is an emergency."""
+        frame_tensor = self.preprocess_frame(frame, bbox)
+        with torch.no_grad():
+            output = self.classifier(frame_tensor)
+        return output.item()
 
     def preprocess_frame(self, frame, bbox):
+        """Preprocess frame for classifier input."""
         x1, y1, x2, y2 = map(int, bbox)
         person_crop = frame[y1:y2, x1:x2]
+        input_size = self.config['model']['classifier']['input_size']
 
-        crop_tensor = cv2.resize(person_crop, (
-            self.config['model']['classifier']['input_size'],
-            self.config['model']['classifier']['input_size']))
-        crop_tensor = crop_tensor / 255.0
+        crop_tensor = cv2.resize(person_crop, (input_size, input_size)) / 255.0
         crop_tensor = torch.tensor(crop_tensor, dtype=torch.float32).permute(2, 0, 1)
-        crop_tensor = crop_tensor.unsqueeze(0).to(self.device)
-
-        return crop_tensor
+        return crop_tensor.unsqueeze(0).to(self.device)
 
     def detect_motion(self, current_bbox, state_data):
-        if state_data['last_position'] is None:
+        """Detect motion by comparing positions."""
+        last_position = state_data['last_position']
+        if last_position is None:
             state_data['last_position'] = current_bbox
             return True
 
-        current_center = [(current_bbox[0] + current_bbox[2]) / 2,
-                          (current_bbox[1] + current_bbox[3]) / 2]
-        last_center = [(state_data['last_position'][0] + state_data['last_position'][2]) / 2,
-                       (state_data['last_position'][1] + state_data['last_position'][3]) / 2]
+        current_center = self.get_center(current_bbox)
+        last_center = self.get_center(last_position)
 
-        distance = np.sqrt((current_center[0] - last_center[0]) ** 2 +
-                           (current_center[1] - last_center[1]) ** 2)
-
+        distance = np.linalg.norm(np.array(current_center) - np.array(last_center))
         state_data['last_position'] = current_bbox
         return distance > self.motion_threshold
 
-    def _visualize_frame(self, frame, results):
-        colors = {
-            'MONITORING': (0, 255, 0),  # Green
-            'FALL_DETECTED': (0, 165, 255),  # Orange
-            'MOTION_TRACKING': (0, 255, 255),  # Yellow
-            'EMERGENCY': (0, 0, 255)  # Red
-        }
+    @staticmethod
+    def get_center(bbox):
+        """Get the center coordinates of a bounding box."""
+        x1, y1, x2, y2 = bbox
+        return [(x1 + x2) / 2, (y1 + y2) / 2]
 
-        for detection in results['detections']:
-            bbox = detection['bbox']
-            confidence = detection['confidence']
-            state = self.detection_states[bbox]['state']
-            color = colors[state]
-
-            x1, y1, x2, y2 = map(int, bbox)
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 1)
-
-            cv2.putText(frame, f"State: {state}", (x1, y1 - 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-            cv2.putText(frame, f"Confidence: {confidence:.2f}", (x1, y1 - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-
-            if state == 'FALL_DETECTED':
-                fall_time = time.time() - self.detection_states[bbox]['fall_detection_time']
-                cv2.putText(frame, f"Wait Time: {fall_time:.1f}s", (x1, y1 - 50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-
-            elif state == 'MOTION_TRACKING':
-                track_time = time.time() - self.detection_states[bbox]['motion_tracking_start']
-                cv2.putText(frame, f"Track Time: {track_time:.1f}s", (x1, y1 - 50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-
-            elif state == 'EMERGENCY':
-                cv2.putText(frame, "EMERGENCY DETECTED", (x1, y1 - 50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+    def visualize_frame(self, frame, results):
+        """Visualize tracking results on the video frame."""
+        for obj in results['tracked_objects']:
+            x1, y1, x2, y2, track_id = map(int, obj[:5])
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            # Ensure track_id exists in detection_states before accessing
+            state_info = self.detection_states.get(track_id, {'state': 'Unknown'})
+            cv2.putText(
+                frame, f"ID: {track_id} State: {state_info['state']}",
+                (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
+            )
 
 
 if __name__ == "__main__":
-    system = EmergencyDetection('../../config/config.yaml', '../models/classifiers/best_model.pth')
-    system.process_video("../data/pipeline_eval_data/test_videos/sudden cardiac arrest tatami.webm")
+    config_path = '../../config/config.yaml'
+    model_path = '../data/weights/best_model.pth'
+    video_path = './sudden cardiac arrest tatami.webm'
+
+    system = EmergencyDetectionSystem(config_path, model_path)
+    system.process_video(video_path)
