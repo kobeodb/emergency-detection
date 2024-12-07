@@ -5,7 +5,6 @@ import torch
 import yaml
 from ultralytics import YOLO
 from src.models.classifiers.classifier import CNN
-from sort import Sort
 
 
 class EmergencyDetectionSystem:
@@ -17,7 +16,7 @@ class EmergencyDetectionSystem:
         self.device = torch.device(self.config['system']['device'])
 
         # Initialize fall detection model (YOLO)
-        self.fall_detector = YOLO('../data/weights/best.pt')
+        self.fall_detector = YOLO('../data/weights/yolo11n.pt')
 
         # Initialize classifier model
         self.classifier = CNN(self.config).to(self.device)
@@ -26,7 +25,6 @@ class EmergencyDetectionSystem:
         self.classifier.eval()
 
         # Initialize SORT tracker
-        self.tracker = Sort()
         self.detection_states = {}
         self.motion_threshold = 50
 
@@ -61,12 +59,12 @@ class EmergencyDetectionSystem:
     def process_frame(self, frame, current_time):
         """Process a single video frame."""
         detections = []
-        results = self.fall_detector(frame)
+        results = self.fall_detector.track(frame)
 
         for box in results[0].boxes:
             bbox = box.xyxy[0].tolist()
             confidence = box.conf.item()
-            if confidence > 0.5:
+            if confidence >= 0.5:
                 detections.append([*bbox, confidence])
 
         tracked_objects = self.tracker.update(np.array(detections))
@@ -122,7 +120,7 @@ class EmergencyDetectionSystem:
         """Determine if a fall is detected."""
         # Check if bbox closely matches a detected fall box
         for box in results[0].boxes:
-            if box.cls.item() == 1:  # Assuming '1' is the class for falls
+            if box.cls.item() == 1:
                 detected_bbox = box.xyxy.cpu().numpy()[0]
                 if np.allclose(detected_bbox, bbox, atol=5):
                     return True
@@ -181,7 +179,7 @@ class EmergencyDetectionSystem:
 if __name__ == "__main__":
     config_path = '../../config/config.yaml'
     model_path = '../data/weights/best_model.pth'
-    video_path = './sudden cardiac arrest tatami.webm'
+    video_path = '../data/pipeline_eval_data/sudden cardiac arrest tatami.webm'
 
     system = EmergencyDetectionSystem(config_path, model_path)
     system.process_video(video_path)

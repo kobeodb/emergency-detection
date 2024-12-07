@@ -58,14 +58,15 @@ class EmergencyDetection:
         cap.release()
         cv2.destroyAllWindows()
 
+
     def process_frame(self, frame, current_time):
         # Perform YOLO detection
         results = self.fall_detector(frame)
 
-        if len(results[0].boxes) > 0:
-            bbox = results[0].boxes.xyxy[0].cpu().numpy()
-            confidence = results[0].boxes[0].conf[0].item()
-            fall_detected = results[0].boxes[0].cls[0].item() == 1
+        if len(results.boxes[0]) > 0:
+            bbox = results.boxes.xyxy.cpu().numpy()
+            confidence = results.boxes.conf.item()
+            fall_detected = results.boxes.cls.item() == 1
 
             if confidence < 0.5:
                 return {'state': self.state, 'bbox': None}

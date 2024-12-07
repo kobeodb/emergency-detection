@@ -1,0 +1,42 @@
+model:
+  detector:
+    type: "yolo11n"
+    confidence_threshold: 0.5
+    weights_path: "src/data/weights/yolo11n.pt"
+    finetuned_weights_path: "C:/Users/mathi/OneDrive/Desktop/projects/bot-brigade/src/data/weights/best.pt"
+
+  classifier:
+    input_size: 128
+    hidden_size: 64
+    num_layers: 4
+    kernel_size: 3
+    dropout: 0.5
+    model_path: "C:/Users/mathi/Documents/GitHub/ai-bot-brigade/src/models/classifiers/best_model.pth"
+
+training_detector:
+  epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.0001
+
+training_classifier:
+  epochs: 50
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  batch_size: 32
+
+fall_detection_data:
+  img_size: 640
+
+classifier_data:
+  train_path: "C:/Users/mathi/OneDrive/Desktop/projects/bot-brigade/src/data/classifier_data/train"
+  valid_path: "C:/Users/mathi/OneDrive/Desktop/projects/bot-brigade/src/data/classifier_data/valid"
+  test_path: "C:/Users/mathi/OneDrive/Desktop/projects/bot-brigade/src/data/classifier_data/test"
+  img_size: 640
+
+system:
+  device: "cpu"
+  num_workers: 4
+
+evaluation:
+  ground_truth_path: "C:/Users/mathi/Documents/GitHub/ai-bot-brigade/src/data/evaluation_data/ground_truth.json"
+  results_path: "C:/Users/mathi/Documents/GitHub/ai-bot-brigade/src/models/metrics/evaluation_results.csv"
