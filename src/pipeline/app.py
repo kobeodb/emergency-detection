@@ -1,15 +1,11 @@
 import os
 import sys
-import time
 
 import dotenv
-from PyQt5.QtWidgets import QApplication, QLabel, QVBoxLayout, QPushButton, QWidget, QMessageBox, QComboBox
-from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtCore import QThread, pyqtSignal
-import cv2
+from PyQt5.QtWidgets import QApplication, QVBoxLayout, QPushButton, QWidget, QMessageBox, QComboBox
 from minio import Minio, S3Error
 
-from src.pipeline.main import process_video
+from src.pipeline.main import Tracker
 
 dotenv.load_dotenv()
 
@@ -48,7 +44,6 @@ class App(QWidget):
         self.video_thread = None
 
     def play_video(self):
-        """Play the selected video."""
         selected_video = self.video_dropdown.currentText()
 
         if selected_video == "Select a video":
@@ -62,13 +57,12 @@ class App(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to download video: {e}")
             return
 
-        process_video(temp_video_path)
+        Tracker(temp_video_path, '../../config.yaml')
 
     def fetch_videos(self):
-        """Fetch video files from the MinIO bucket and populate the dropdown."""
         try:
             self.video_dropdown.clear()
-            self.video_dropdown.addItem("Select a video")  # Reset default option
+            self.video_dropdown.addItem("Select a video")
             objects = minio_client.list_objects(BUCKET_NAME, recursive=True)
             video_files = [
                 obj.object_name for obj in objects if obj.object_name.endswith(('.mp4', '.avi', '.mkv'))
