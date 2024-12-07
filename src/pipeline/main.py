@@ -71,7 +71,7 @@ def process_frame(frame, ctime):
 
     annotated_frame = frame.copy()
     for result in results:
-        if result.boxes is None:
+        if not result.boxes or result.boxes.id is None:
             continue
 
         for box, cls, track_id, conf in zip(
@@ -110,7 +110,7 @@ def process_frame(frame, ctime):
                         emergency_prob = output.item()
                         print(f"Emergency probability: {emergency_prob:.2f}")
 
-                    if emergency_prob < 0.5:
+                    if emergency_prob <= 0.55:
                         history[track_id]['state'] = 'EMERGENCY'
 
             x1, y1, x2, y2 = box
