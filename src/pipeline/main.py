@@ -8,15 +8,10 @@ from ultralytics import YOLO
 
 from src.models.classifiers.classifier import CNN
 
-# Load the YOLO model
-model = YOLO("../data/weights/best.pt")
-
-# Open the video file
+model = YOLO("../data/weights/best_4.pt")
 video_path = "../data/pipeline_eval_data/sudden cardiac arrest tatami.webm"
 
-# Dictionary to store the state and bounding box of each person
 history = defaultdict(lambda: {'state': 'MONITORING', 'bbox': None})
-
 dtime = defaultdict(float)
 mtime = defaultdict(float)
 last_pos = defaultdict(lambda: None)
