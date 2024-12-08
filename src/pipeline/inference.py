@@ -17,8 +17,7 @@ class EmergencyDetection:
         self.fall_detector = YOLO(self.config['model']['detector']['finetuned_weights_path'])
 
         self.classifier = CNN(self.config).to(self.device)
-        checkpoint = torch.load(model_path, map_location=self.device)
-        self.classifier.load_state_dict(checkpoint['classifier_state_dict'])
+        self.classifier.load_state_dict(torch.load(model_path, map_location=self.device))
         self.classifier.eval()
 
         self.detection_states = {}

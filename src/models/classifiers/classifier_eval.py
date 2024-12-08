@@ -41,7 +41,7 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
 
     # Specify the image path
-    image_path = '../../data/pipeline_eval_data/test_frames/Screenshot 2024-12-02 at 19.15.07.png'
+    image_path = '../../data/pipeline_eval_data/test_frames/Screenshot 2024-12-02 at 19.11.24.png'
 
     # Set the device
     device = config['system']['device']

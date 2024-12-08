@@ -5,7 +5,7 @@ import json
 import pandas as pd
 import cv2
 # from src.pipeline.inference import EmergencyDetection
-from src.pipeline.main import EmergencyDetection
+from src.pipeline.main import EmergencyDetector
 
 class EvaluationTable:
     def __init__(self, config_path, video_dir):
@@ -14,15 +14,14 @@ class EvaluationTable:
             self.config = yaml.safe_load(f)
 
         self.model_path = self.config['model']['classifier']['model_path']
-        self.pipeline = EmergencyDetection(config_path, self.model_path)
+        self.pipeline = EmergencyDetector(config_path, self.model_path)
         self.video_dir = Path(video_dir)
 
         ground_truth_path = self.config['evaluation']['ground_truth_path']
         with open(ground_truth_path) as f:
             self.ground_truth = json.load(f)
 
-
-        self.FRAME_THRESHOLD = 180 #frames, given 30 frames per second, this should equal to 6 seconds
+        self.FRAME_THRESHOLD = 180  # Frames, given 30 frames per second, this equals 6 seconds
         self.results_df = pd.DataFrame(columns=['video', 'truth', 'found', 'correct', 'false', 'missed'])
 
     def run_inference(self, video_path):
@@ -33,20 +32,35 @@ class EvaluationTable:
 
         detected_alerts = []
         frame_count = 0
+        stop_processing = False
 
         while cap.isOpened():
+            if stop_processing:
+                break
+
             ret, frame = cap.read()
             if not ret:
                 break
 
-            current_time = time.time() - start_time
-            results = self.pipeline.process_frame(frame, current_time)
-            print(f"Frame {frame_count} results: {results}")
+            try:
+                current_time = time.time() - start_time
+                frame_results = self.pipeline.process_frame(frame, current_time)
 
-            if results.get('state') == 'EMERGENCY':
-                if not detected_alerts:
-                    detected_alerts.append(frame_count)
-                break
+                if frame_results and isinstance(frame_results, dict):
+                    for detection in frame_results.get('detections', []):
+                        if detection.get('state') == 'EMERGENCY':
+                            detected_alerts.append(frame_count)
+                            stop_processing = True
+                            break
+            except cv2.error as e:
+                print(f"Warning: OpenCV error in frame {frame_count}: {str(e)}")
+                self.pipeline.history.clear()
+                self.pipeline.dtime.clear()
+                self.pipeline.mtime.clear()
+                self.pipeline.last_pos.clear()
+                self.pipeline.static_back.clear()
+            except Exception as e:
+                print(f"Warning: Unexpected error in frame {frame_count}: {str(e)}")
 
             frame_count += 1
 
@@ -55,7 +69,6 @@ class EvaluationTable:
 
     def evaluate_all_videos(self):
         for video_name, ground_truth_frame in self.ground_truth.items():
-            # self.pipeline = EmergencyDetection(self.config_path, self.model_path)
             video_path = self.video_dir / video_name
             alerts_generated = self.run_inference(video_path)
 
@@ -63,7 +76,7 @@ class EvaluationTable:
             alerts_false = []
             alerts_missed = []
 
-            for gt_frame in ground_truth_frame: #should be 1 frame
+            for gt_frame in ground_truth_frame:
                 found = False
                 for alert_frame in alerts_generated:
                     if abs(gt_frame - alert_frame) <= self.FRAME_THRESHOLD:
@@ -92,7 +105,12 @@ class EvaluationTable:
             }
             self.results_df = pd.concat([self.results_df, pd.DataFrame([new_row])], ignore_index=True)
 
-            self.pipeline.reset()
+            self.pipeline.history.clear()
+            self.pipeline.dtime.clear()
+            self.pipeline.mtime.clear()
+            self.pipeline.last_pos.clear()
+            self.pipeline.static_back.clear()
+
         return self._calculate_metrics()
 
     def _calculate_metrics(self):
@@ -102,13 +120,9 @@ class EvaluationTable:
         tot_false = sum(len(row['false']) for _, row in self.results_df.iterrows())
         tot_missed = sum(len(row['missed']) for _, row in self.results_df.iterrows())
 
-        correct_no_alerts = sum(1 for _, row in self.results_df.iterrows()
-                                if not row['truth'] and not row['found'])
-
-
         metrics = {
             'precision': round((tot_correct / (tot_correct + tot_false)) * 100, 2) if tot_found > 0 else 0,
-            'recall': round((tot_correct / (tot_correct + tot_missed)) * 100, 2) if tot_found > 0 else 0,
+            'recall': round((tot_correct / (tot_correct + tot_missed)) * 100, 2) if tot_truth > 0 else 0,
             'false_alert_rate': round((tot_false / tot_found) * 100, 2) if tot_found > 0 else 0
         }
 
@@ -116,7 +130,6 @@ class EvaluationTable:
         self.results_df.to_csv(results_path, index=False)
 
         return metrics
-
 
     def print_results(self):
         """Print evaluation results in a readable format"""
@@ -138,3 +151,4 @@ class EvaluationTable:
 if __name__ == '__main__':
     evaluator = EvaluationTable('../../../config/config.yaml', '../../data/pipeline_eval_data/test_videos')
     evaluator.print_results()
+
