@@ -6,7 +6,7 @@ model:
     finetuned_weights_path: "C:/Users/mathi/OneDrive/Desktop/projects/bot-brigade/src/data/weights/best_4.pt"
 
   classifier:
-    input_size: 128
+    input_size: 256
     hidden_size: 64
     out_channels: 64
     num_layers: 4
