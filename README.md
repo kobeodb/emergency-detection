@@ -58,8 +58,42 @@ This marks a significant improvement compared to previous weeks. However, the ev
 ## The sources
 ***
 
+### alert detector: inference_single_person.py (in ./src/pipeline dir)
+
+This Python script contains the final alert detection algorithm, containing all the logic for how emergencies are identified.
+
+
+### classifier.py (in ./src/models/classifier dir)
+
+This python script hold the architecture of the 2d cnn and the data loading.
+
+
+### algorithm_eval_table.py (in ./src/models/metrics dir)
+
+This Python script generates the evaluation table by utilizing the alert detection algorithm and iterating through specified videos.
+
+
+### config.yaml (in ./config dir)
+
+This yaml file hold all the adjustable parameters across all models (yolo and classifier) and all paths.
+
 ## How to run scripts and reproduce the results
 ***
+
+### Setup your python environment
+
+- python version: 3.11
+- pip install -r requirements
+
+### Setup all the right paths and device
+
+- In the config.yaml file, update the paths to match your own directory structure. Additionally, if you want to train the YOLO model or the classifier, make sure to set the device field to the hardware you are using (e.g., cpu, cuda, etc.).
+
+### training yolo model and classifier
+- The repository does not include any data or model files, so you will need to provide your own datasets and pre-trained models to proceed.
+
+## Run the alert detector script.
+- If all goes well you should be able to run the alert detector script after you have specified the video you want to run the algorithm on.
 
 # Open Issues
 ***
