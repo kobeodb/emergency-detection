@@ -28,13 +28,17 @@ training_classifier:
   weight_decay: 0.0001
   batch_size: 32
 
+training_rf:
+  n_estimators: 100
+  max_depth: 10
+
 fall_detection_data:
   img_size: 640
 
 classifier_data:
-  train_path: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/classifier_data/train"
-  valid_path: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/classifier_data/valid"
-  test_path: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/classifier_data/test"
+  train_path: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/new_classifier_data/train"
+  valid_path: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/new_classifier_data/valid"
+  test_path: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/new_classifier_data/test"
   img_size: 640
 
 system:

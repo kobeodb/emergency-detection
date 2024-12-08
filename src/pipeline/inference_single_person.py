@@ -1,4 +1,5 @@
 import time
+from pyexpat import features
 
 import cv2
 import numpy as np
@@ -7,6 +8,8 @@ import yaml
 from ultralytics import YOLO
 import torch.nn.functional as func
 from src.models.classifiers.classifier import CNN
+import joblib
+from src.models.classifiers.random_forest.rf import FeatureExtractor
 
 
 class EmergencyDetection:
@@ -20,10 +23,14 @@ class EmergencyDetection:
         self.fall_detector = YOLO(self.config['model']['detector']['finetuned_weights_path'])
 
         # Load CNN classifier for emergency detection
-        self.classifier = CNN(self.config).to(self.device)
-        checkpoint = torch.load(model_path, map_location=self.device)
-        self.classifier.load_state_dict(checkpoint['classifier_state_dict'])
-        self.classifier.eval()
+        # self.classifier = CNN(self.config).to(self.device)
+        # checkpoint = torch.load(model_path, map_location=self.device)
+        # self.classifier.load_state_dict(checkpoint['classifier_state_dict'])
+        # self.classifier.eval()
+
+        self.feature_extractor = FeatureExtractor().to(self.device)
+        self.feature_extractor.eval()
+        self.classifier = joblib.load(model_path)
 
         self.state = 'MONITORING'
         self.fall_detection_time = None
@@ -92,14 +99,10 @@ class EmergencyDetection:
                 self.reset()
                 print(f"Motion detected at {current_time:.2f}s")
             elif elapsed_time >= 4.0:
-                self.classifier.eval()
-                with torch.no_grad():
-                    frame_tensor = self.preprocess_frame(frame, bbox)
-                    output = self.classifier(frame_tensor)
-                    emergency_prob = output.item()
-                    print(f"Emergency probability: {emergency_prob:.2f}")
+                features = self.extract_features(frame, bbox)
+                emergency_prob = self.classifier.predict_proba(features)[0, 0]
 
-                if emergency_prob <= 0.5:
+                if emergency_prob >= 0.5:
                     self.state = 'EMERGENCY'
                     print(f"Emergency confirmed at {current_time:.2f}s with confidence {emergency_prob:.2f}")
                     return {
@@ -128,6 +131,12 @@ class EmergencyDetection:
         crop_tensor = crop_tensor.unsqueeze(0).to(self.device)  # Add batch dimension
 
         return crop_tensor
+
+    def extract_features(self, frame, bbox):
+        frame_tensor = self.preprocess_frame(frame, bbox)
+        with torch.no_grad():
+            features = self.feature_extractor(frame_tensor).cpu().numpy()
+        return features
 
     def detect_motion(self, current_bbox):
         if self.last_position is None:
@@ -180,5 +189,5 @@ class EmergencyDetection:
 
 
 if __name__ == "__main__":
-    system = EmergencyDetection('../../config/config.yaml', '../models/classifiers/best_model.pth')
-    system.process_video('../data/pipeline_eval_data/test_videos/simulation_chantier.mp4')
+    system = EmergencyDetection('../../config/config.yaml', '../models/classifiers/random_forest/rf_classifier.pkl')
+    system.process_video('../data/pipeline_eval_data/test_videos/person_tying_laces_front.mts')
