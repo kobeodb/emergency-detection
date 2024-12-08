@@ -98,6 +98,8 @@ This yaml file hold all the adjustable parameters across all models (yolo and cl
 # Open Issues
 ***
 
+Things to do are registered in [github tasks](https://github.com/mxttywxtty/bot-brigade/issues?q=is%3Aissue+is%3Aopen+label%3Atask)
+Bugs are registered in [known open bugs]()
 
 
 
