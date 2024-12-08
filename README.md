@@ -36,12 +36,24 @@ So far, we have explored 2 techniques:
 - We used MediaPipe to extract pose keypoints, which were then input into an XGBoost classifier trained on keypoints from images of individuals both fine and in need of assistance. While this approach produced decent results, we found that MediaPipe's keypoint extraction lacked sufficient accuracy.
 - We shifted focus to a 2D CNN built from scratch. The network takes cropped frames from bounding boxes as input, using three RGB channels. This classifier was trained on the same dataset and has shown reasonable performance during evaluation. However, it still occasionally fails to classify correctly.
 
-To improve upon these methods, we are revisiting pose keypoint extraction. This time, the extracted keypoints will be used as input to a random forest classifier.
+After testing the 2d cnn classifier on a test set we had some great results:
+<img width="946" alt="Screenshot_2024-12-07_at_21 52 08" src="https://github.com/user-attachments/assets/d23b6747-f97e-4e5b-84bb-eec250fefc01">
+
+But as you can see in the evaluation below, we still want to improve upon these methods, that's why we are revisiting pose keypoint extraction. This time, the extracted keypoints will be used as input to a random forest classifier.
 
 Our plan is to compare the performance of the 2D CNN and the pose-based random forest classifier. Based on the results, we will decide which approach to refine further.
 
 ## Results
-For a set of 23 videos
+For a set of 23 videos (10 negative/13 positive) the algorithm scored
+
+- 71% precision
+- 71% recall
+- 29% false alert rate
+
+<img width="667" alt="Screenshot 2024-12-08 at 22 10 10" src="https://github.com/user-attachments/assets/27fd0369-d4d4-449c-b266-242c51765a0e">
+
+This marks a significant improvement compared to previous weeks. However, the evaluation highlights areas where our algorithm is still falling short. In certain scenarios, the classifier continues to make incorrect classifications (red), which is unacceptable in critical situations. Additionally, the fine-tuned YOLO model occasionally fails to perform accurately, resulting in missed alert detections (yellow).
+
 
 ## The sources
 ***
@@ -51,29 +63,6 @@ For a set of 23 videos
 
 # Open Issues
 ***
-
-## How to run the inference
-- clone this repository
-- install the requirements
-- make sure the config.yaml file contains the right paths
-- navigate to src/pipeline/inference.py
-- at the bottom of this file make sure the paths are correct and choose a video you want to run the inference on.
-- run this file.
-
-## Components used
-- Fine-Tuned YOLOv11 weights
-- Implemented Motion Tracking for post fall behavior
-- CNN (Classifier) -> frame input
-
-## Classifier Report
-<img width="5000" alt="image" src="https://github.com/user-attachments/assets/475f9201-66cf-4a4e-ba6c-b4a1b0c99b80">
-
-## Fine-tuned yolov11 model
-<img width="5000" alt="image" src="https://github.com/user-attachments/assets/27f85c1b-a367-4c7d-a98a-08f695d7341a">
-
-
-## Algorithm Evaluation
-<img width="726" alt="Screenshot 2024-11-24 at 22 21 27" src="https://github.com/user-attachments/assets/14dd31e3-5dc0-4cc7-8338-87b2ee9ca28c">
 
 
 
