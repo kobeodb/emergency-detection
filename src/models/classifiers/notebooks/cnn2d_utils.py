@@ -3,9 +3,9 @@ import torch
 
 
 def make_model(trial, input_size):
-    initial_out_channels = 64
-    num_layers = 4
-    dropout = 0.2
+    initial_out_channels = 32
+    num_layers = 3
+    dropout = 0.4
 
     class CNN(nn.Module):
         def __init__(self):

@@ -29,9 +29,10 @@ class EmergencyDetector:
         self.last_pos = defaultdict(lambda: None)
         self.static_back = defaultdict(lambda: None)
 
-        # self.input_size = self.config['model']['classifier']['input_size']
-        # self.classifier = make_model(trial=None, input_size=self.input_size).to(self.device)
-        # self.classifier.load_state_dict(torch.load(model_path, map_location=self.device))
+        # input_size = self.config['model']['classifier']['input_size']
+        # self.classifier = make_model(trial=None, input_size=input_size).to(self.config['system']['device'])
+        # checkpoint = torch.load(model_path, map_location=self.config['system']['device'])
+        # self.classifier.load_state_dict(checkpoint['classifier_state_dict'])
         # self.classifier.eval()
 
         self.classifier = CNN(self.config).to(self.device)

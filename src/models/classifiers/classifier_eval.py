@@ -4,6 +4,8 @@ import numpy as np
 import yaml
 from pathlib import Path
 from classifier import CNN
+from src.models.classifiers.notebooks.cnn2d_utils import make_model
+
 
 def preprocess_image(image_path, config):
     """Preprocess an image for the model."""
@@ -18,13 +20,16 @@ def preprocess_image(image_path, config):
     image_tensor = torch.tensor(image, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
     return image_tensor
 
-def load_model(checkpoint_path, config, device):
+def load_model(model_path, config, device):
     """Load the model from a checkpoint."""
-    model = CNN(config).to(device)
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    model.load_state_dict(checkpoint['classifier_state_dict'])
-    model.eval()  # Set the model to evaluation mode
-    return model
+
+    input_size = config['model']['classifier']['input_size']
+    loaded_model = make_model(trial=None, input_size=input_size).to(config['system']['device'])
+    checkpoint = torch.load(model_path, map_location=config['system']['device'])
+    loaded_model.load_state_dict(checkpoint['classifier_state_dict'])
+    loaded_model.eval()
+
+    return loaded_model
 
 def predict(image_path, model, config, device):
     """Predict the label for a single image."""
@@ -41,13 +46,14 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
 
     # Specify the image path
-    image_path = '../../data/pipeline_eval_data/test_frames/Screenshot 2024-12-02 at 19.11.24.png'
+    # image_path = '../../data/pipeline_eval_data/test_frames/Screenshot 2024-12-02 at 19.11.24.png'
+    image_path = '../../data/classifier_data/test/images/final1500107_jpg.rf.f39398cceb35b9c67b3bdaff083edca3.jpg'
 
     # Set the device
     device = config['system']['device']
 
     # Load the trained model
-    model = load_model('best_model.pth', config, device)
+    model = load_model('notebooks/best_model_optuna.pth', config, device)
 
     # Predict the label
     probability = predict(image_path, model, config, device)
