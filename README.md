@@ -1,5 +1,24 @@
 # Bot Brigade - Eyes4Resque
 
+## General Architecture
+***
+### Detect and track people.
+### Detect a fall (or a person laying on the ground).
+### Motion detection of people that fell on the ground (or lay down).
+### Detection of motionless people that fell on the floor and effectively need help.
+
+## Results
+***
+
+## The sources
+***
+
+## How to run scripts and reproduce the results
+***
+
+# Open Issues
+***
+
 ## How to run the inference
 - clone this repository
 - install the requirements

@@ -3,6 +3,7 @@ venv
 .venv
 .env
 /src/data/classifier_data/*
+/src/data/new_classifier_data/*
 /src/data/detection_data/*
 /src/data/weights/*
 /src/models/metrics/__pycache__/*
