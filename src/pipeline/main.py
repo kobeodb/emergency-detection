@@ -11,12 +11,17 @@ from src.models.classifiers.classifier import CNN
 
 
 class Tracker:
-    def __init__(self, video_path: str, config: str):
+    def __init__(self, video_path: str, config: str = '../../config.yaml'):
         with open(config) as f:
             _config = yaml.safe_load(f)
 
-        self.model = YOLO(_config['model']['detector']['finetuned_weights_path'])
         self.video = video_path
+        self.model = YOLO(_config['model']['detector']['finetuned_weights_path'])
+
+        self.device = _config['system']['device']
+
+        self.classifier = CNN(_config).to(self.device)
+        self.classifier.eval()
 
         self.dtime = defaultdict(float)
         self.mtime = defaultdict(float)
@@ -24,16 +29,6 @@ class Tracker:
         self.history = defaultdict(lambda: {'state': 'MONITORING', 'bbox': None})
         self.last_pos = defaultdict(lambda: None)
         self.static_back = defaultdict(lambda: None)
-
-        self.classifier = CNN(_config).to(_config['system']['device'])
-        self.classifier.eval()
-
-        self.transform = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.Resize((256, 256)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-        ])
 
         self.process_video()
 
@@ -50,7 +45,7 @@ class Tracker:
             classes = result.boxes.cls.cpu().numpy()
 
             indices = cv2.dnn.NMSBoxes(boxes.tolist(), confidences.tolist(),
-                                       score_threshold=0.5, nms_threshold=0.4)
+                                       score_threshold=0.5, nms_threshold=0.5)
 
             if len(indices) > 0:
                 for i in indices.flatten():  # type: ignore
@@ -92,14 +87,40 @@ class Tracker:
 
         cv2.imshow("Bot Brigade", annotated_frame)
 
-    def _draw(self, frame, track_id, color):
+    def _preprocess_frame(self, frame, track_id):
         x1, y1, x2, y2 = map(int, self.history[track_id]['bbox'])
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+        frame = frame[y1:y2, x1:x2]
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame = cv2.resize(frame, (256, 256))
+        frame = frame / 255.0
+        frame = np.transpose(frame, (2, 0, 1))
+
+        return torch.tensor(frame, dtype=torch.float32).unsqueeze(0).to(self.device)
+
+    def _draw(self, frame, track_id, color):
+        x1, y1, x2, y2 = self.history[track_id]['bbox']
+
+        cv2.rectangle(
+            frame,
+            (int(x1), int(y1)),
+            (int(x2), int(y2)),
+            color,
+            2,
+        )
 
         label = f"ID: {track_id}, State: {self.history[track_id]['state']}"
         label_position = (int(x1), int(y1) - 10)
-
-        cv2.putText(frame, label, label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, lineType=cv2.LINE_AA)
+        cv2.putText(
+            frame,
+            label,
+            label_position,
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            color,
+            2,
+            lineType=cv2.LINE_AA
+        )
 
         return frame
 
@@ -119,12 +140,6 @@ class Tracker:
         self.mtime[track_id] = 0.0
         self.last_pos[track_id] = None
         self.static_back[track_id] = None
-
-    def _preprocess_frame(self, frame, track_id):
-        x1, y1, x2, y2 = map(int, self.history[track_id]['bbox'])
-        person_crop = frame[y1:y2, x1:x2]
-        frame_tensor = self.transform(person_crop).unsqueeze(0).to('cuda')
-        return frame_tensor
 
     def _detect_motion(self, frame, track_id):
         motion = False
@@ -170,4 +185,4 @@ class Tracker:
 
 
 if __name__ == '__main__':
-    Tracker('../data/pipeline_eval_data/simulation_chantier_2.mp4', '../../config.yaml')
+    Tracker('../data/pipeline_eval_data/sudden cardiac arrest tatami.webm')

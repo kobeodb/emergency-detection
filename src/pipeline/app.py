@@ -57,7 +57,7 @@ class App(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to download video: {e}")
             return
 
-        Tracker(temp_video_path, '../../config.yaml')
+        Tracker(temp_video_path)
 
     def fetch_videos(self):
         try:

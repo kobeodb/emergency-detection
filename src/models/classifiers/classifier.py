@@ -203,5 +203,5 @@ class ClassifierTrainer:
 
 
 if __name__ == "__main__":
-    trainer = ClassifierTrainer('../../../config/config.yaml')
+    trainer = ClassifierTrainer('../../../config.yaml')
     trainer.train()
