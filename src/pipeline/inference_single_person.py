@@ -149,7 +149,7 @@ class EmergencyDetection:
             return False
 
         diff_frame = cv2.absdiff(self.static_background, gray)
-        thresh_frame = cv2.threshold(diff_frame, 10, 255, cv2.THRESH_BINARY)[1]
+        thresh_frame = cv2.threshold(diff_frame, 5, 255, cv2.THRESH_BINARY)[1]
         thresh_frame = cv2.dilate(thresh_frame, None, iterations=2)
 
         contours, _ = cv2.findContours(thresh_frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -197,4 +197,4 @@ class EmergencyDetection:
 
 if __name__ == "__main__":
     system = EmergencyDetection('../../config/config.yaml', '../models/classifiers/best_model.pth')
-    system.process_video('../data/pipeline_eval_data/test_videos/person_tying_laces_front.MTS')
+    system.process_video('../data/pipeline_eval_data/test_videos/Segway Fall.mp4')
