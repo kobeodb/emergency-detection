@@ -13,3 +13,4 @@ src/models/classifiers/best_model.pth
 src/data/pipeline_eval_data/test_videos/*
 src/models/fall_detector/runs/*
 src/models/fall_detector/src/*
+src/data/new_classifier_data/
