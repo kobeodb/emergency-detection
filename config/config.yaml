@@ -3,7 +3,7 @@ model:
     type: "yolo11n"
     confidence_threshold: 0.5
     weights_path: "src/data/weights/yolo11n.pt"
-    finetuned_weights_path: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/weights/best_4.pt"
+    finetuned_weights_path: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/weights/best_2.pt"
 
   classifier:
     input_size: 128
