@@ -31,6 +31,8 @@ class EmergencyDetection:
         self.last_position = None
         self.motion_threshold = 50 #frames
 
+        self.static_background = None
+
     def reset(self):
         self.state = 'MONITORING'
         self.fall_detection_time = None
@@ -82,11 +84,12 @@ class EmergencyDetection:
                 self.state = 'MOTION_TRACKING'
                 self.motion_tracking_start = current_time
                 self.last_position = bbox
+                self.initialize_static_background(frame, bbox)
                 print(f"Starting motion tracking at {current_time:.2f}s")
 
         elif self.state == 'MOTION_TRACKING':
             elapsed_time = current_time - self.motion_tracking_start
-            has_motion = self.detect_motion(bbox)
+            has_motion = self.detect_motion(frame, bbox)
 
             if has_motion:
                 self.reset()
@@ -129,21 +132,34 @@ class EmergencyDetection:
 
         return crop_tensor
 
-    def detect_motion(self, current_bbox):
-        if self.last_position is None:
-            self.last_position = current_bbox
-            return True
+    def initialize_static_background(self, frame, bbox):
+        x1, y1, x2, y2 = map(int, bbox)
+        region = frame[y1:y2, x1:x2]
+        gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+        self.static_background = cv2.GaussianBlur(gray, (21, 21), 0)
 
-        current_center = [(current_bbox[0] + current_bbox[2]) / 2,
-                          (current_bbox[1] + current_bbox[3]) / 2]
-        last_center = [(self.last_position[0] + self.last_position[2]) / 2,
-                       (self.last_position[1] + self.last_position[3]) / 2]
+    def detect_motion(self, frame, bbox):
+        x1, y1, x2, y2 = map(int, bbox)
+        region = frame[y1:y2, x1:x2]
+        gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
-        distance = np.sqrt((current_center[0] - last_center[0]) ** 2 +
-                           (current_center[1] - last_center[1]) ** 2)
+        if self.static_background is None or self.static_background.shape != gray.shape:
+            self.initialize_static_background(frame, bbox)
+            return False
 
-        self.last_position = current_bbox
-        return distance > self.motion_threshold
+        diff_frame = cv2.absdiff(self.static_background, gray)
+        thresh_frame = cv2.threshold(diff_frame, 10, 255, cv2.THRESH_BINARY)[1]
+        thresh_frame = cv2.dilate(thresh_frame, None, iterations=2)
+
+        contours, _ = cv2.findContours(thresh_frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        for contour in contours:
+            if cv2.contourArea(contour) > 10000:
+                return True
+
+        return False
+
 
     def _visualize_frame(self, frame, results):
         if results['bbox'] is not None:
@@ -181,4 +197,4 @@ class EmergencyDetection:
 
 if __name__ == "__main__":
     system = EmergencyDetection('../../config/config.yaml', '../models/classifiers/best_model.pth')
-    system.process_video('../data/pipeline_eval_data/test_videos/simulation_chantier.mp4')
+    system.process_video('../data/pipeline_eval_data/test_videos/person_tying_laces_front.MTS')
