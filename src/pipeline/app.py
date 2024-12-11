@@ -5,11 +5,11 @@ import dotenv
 from PyQt5.QtWidgets import QApplication, QVBoxLayout, QPushButton, QWidget, QMessageBox, QComboBox
 from minio import Minio, S3Error
 
-from src.pipeline.main import Tracker
+from src.pipeline.main import process_video
 
 dotenv.load_dotenv()
 
-DOWNLOAD_DIR = "./data/pipeline_eval_data/test_videos/"
+DOWNLOAD_DIR = "./data/evaluation_data/test_videos/"
 BUCKET_NAME = os.environ["MINIO_BUCKET_NAME"]
 
 minio_client = Minio(
@@ -50,14 +50,14 @@ class App(QWidget):
             QMessageBox.warning(self, "No Video Selected", "Please select a video to play.")
             return
 
-        temp_video_path = f"../data/pipeline_eval_data/{selected_video}"
+        temp_video_path = f"../data/evaluation_data/{selected_video}"
         try:
             minio_client.fget_object(BUCKET_NAME, selected_video, temp_video_path)
         except S3Error as e:
             QMessageBox.critical(self, "Error", f"Failed to download video: {e}")
             return
 
-        Tracker(temp_video_path)
+        process_video(temp_video_path)
 
     def fetch_videos(self):
         try:

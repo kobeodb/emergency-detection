@@ -42,5 +42,5 @@ system:
   num_workers: 4
 
 evaluation:
-  ground_truth_path: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/pipeline_eval_data/ground_truth.json"
+  ground_truth_path: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/evaluation_data/ground_truth.json"
   results_path: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/models/metrics/evaluation_results.csv"

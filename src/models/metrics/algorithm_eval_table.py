@@ -4,8 +4,8 @@ import yaml
 import json
 import pandas as pd
 import cv2
-# from src.pipeline.inference import EmergencyDetection
 from src.pipeline.main import EmergencyDetection
+
 
 class EvaluationTable:
     def __init__(self, config_path, video_dir):
@@ -21,8 +21,7 @@ class EvaluationTable:
         with open(ground_truth_path) as f:
             self.ground_truth = json.load(f)
 
-
-        self.FRAME_THRESHOLD = 180 #frames, given 30 frames per second, this should equal to 6 seconds
+        self.FRAME_THRESHOLD = 180  # frames, given 30 frames per second, this should equal to 6 seconds
         self.results_df = pd.DataFrame(columns=['video', 'truth', 'found', 'correct', 'false', 'missed'])
 
     def run_inference(self, video_path):
@@ -63,7 +62,7 @@ class EvaluationTable:
             alerts_false = []
             alerts_missed = []
 
-            for gt_frame in ground_truth_frame: #should be 1 frame
+            for gt_frame in ground_truth_frame:  #should be 1 frame
                 found = False
                 for alert_frame in alerts_generated:
                     if abs(gt_frame - alert_frame) <= self.FRAME_THRESHOLD:
@@ -105,7 +104,6 @@ class EvaluationTable:
         correct_no_alerts = sum(1 for _, row in self.results_df.iterrows()
                                 if not row['truth'] and not row['found'])
 
-
         metrics = {
             'precision': round((tot_correct / (tot_correct + tot_false)) * 100, 2) if tot_found > 0 else 0,
             'recall': round((tot_correct / (tot_correct + tot_missed)) * 100, 2) if tot_found > 0 else 0,
@@ -116,7 +114,6 @@ class EvaluationTable:
         self.results_df.to_csv(results_path, index=False)
 
         return metrics
-
 
     def print_results(self):
         """Print evaluation results in a readable format"""
@@ -136,5 +133,5 @@ class EvaluationTable:
 
 
 if __name__ == '__main__':
-    evaluator = EvaluationTable('../../../config/config.yaml', '../../data/pipeline_eval_data/test_videos')
+    evaluator = EvaluationTable('../../../config/config.yaml', '../../data/evaluation_data/test_videos')
     evaluator.print_results()

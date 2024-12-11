@@ -1,194 +1,273 @@
 import time
 from collections import defaultdict
+
 import cv2
 import joblib
-import numpy as np
-import torch
-import yaml
-from ultralytics import YOLO
 import mediapipe as mp
+import numpy as np
+from ultralytics import YOLO
 
-from src.models.classifiers.classifier import CNN
+CONFIG_PATH = '../../config.yaml'
+RF_WEIGHT_PATH = '../models/weights/best_rf_model_M.pkl'
+YOLO_WEIGHT_PATH = '../models/weights/best_4.pt'
+
+MOTION_THRESHOLD = 2.0
+EMERGENCY_THRESHOLD = 3.0
+MOVEMENT_THRESHOLD = 10000
 
 mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+pose = mp_pose.Pose(min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5)
+
+yolo_model = YOLO(YOLO_WEIGHT_PATH)
+rf_model = joblib.load(RF_WEIGHT_PATH)
+
+detection_time = defaultdict(float)
+motion_time = defaultdict(float)
+
+tracker = defaultdict(lambda: {'state': 'MONITORING', 'bbox': None, 'static_back': None})
 
 
-def extract_pose_keypoints(image):
-    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    result = pose.process(image_rgb)
+def _process_frame(frame, current_time):
+    """
+    Process a single frame of the video, detecting and tracking falls.
 
-    keypoints = np.zeros((33 * 3))
+    :param frame: The frame of the video.
+    :param current_time: The current time in seconds.
+    :return: None
+    """
+    results = yolo_model.track(frame, persist=True)
 
-    if result.pose_landmarks:
-        for i, landmark in enumerate(result.pose_landmarks.landmark):
-            keypoints[i * 3] = landmark.x
-            keypoints[i * 3 + 1] = landmark.y
-            keypoints[i * 3 + 2] = landmark.z
+    annotated_frame = frame.copy()
+    for result in results:
+        if not result.boxes:
+            continue
 
-    return np.array(keypoints).flatten()
+        boxes = result.boxes.xyxy.cpu().numpy()
+        confidences = result.boxes.conf.cpu().numpy()
+        classes = result.boxes.cls.cpu().numpy()
+
+        indices = cv2.dnn.NMSBoxes(boxes.tolist(), confidences.tolist(),
+                                   score_threshold=0.5, nms_threshold=0.5)
+
+        if len(indices) > 0:
+            for i in indices.flatten():  # type: ignore
+                track_id = int(result.boxes.id[i])
+
+                if track_id not in tracker:
+                    _reset(track_id)
+
+                process_box(frame, track_id, boxes[i], classes[i], current_time)
+                annotated_frame = _draw(annotated_frame, track_id, color_map(track_id))
+
+    cv2.imshow("Bot Brigade", annotated_frame)
 
 
-class Tracker:
-    def __init__(self, video_path: str, config: str = '../../config.yaml'):
-        with open(config) as f:
-            _config = yaml.safe_load(f)
+def process_box(frame, track_id, box, cls, current_time):
+    """
+    Process a detected bounding box for a tracked object.
 
-        self.video = video_path
-        self.model = YOLO(_config['model']['detector']['finetuned_weights_path'])
+    :param frame: The frame of the video.
+    :param track_id: The current id of the tracked object.
+    :param box: The detected bounding box.
+    :param cls: The class of the detected predicted object.
+    :param current_time: The current time in seconds.
+    :return: None
+    """
+    tracker[track_id]['bbox'] = box
+    state = tracker[track_id]['state']
 
-        self.device = _config['system']['device']
+    if state == 'MONITORING' and int(cls) == 1:
+        tracker[track_id]['state'] = 'FALL_DETECTED'
+        detection_time[track_id] = current_time
 
-        self.classifier = CNN(_config).to(self.device)
-        self.classifier.eval()
+    elif state == 'FALL_DETECTED':
+        if current_time - detection_time[track_id] >= MOTION_THRESHOLD:
+            tracker[track_id]['state'] = 'MOTION_TRACKING'
+            motion_time[track_id] = current_time
 
-        self.dtime = defaultdict(float)
-        self.mtime = defaultdict(float)
+    elif state == 'MOTION_TRACKING':
+        handle_motion(frame, track_id, current_time)
 
-        self.history = defaultdict(lambda: {'state': 'MONITORING', 'bbox': None})
-        self.last_pos = defaultdict(lambda: None)
-        self.static_back = defaultdict(lambda: None)
 
-        self.process_video()
+def handle_motion(frame, track_id, current_time):
+    """
+    Handle the motion state of a tracked object, determining whether it is an emergency.
 
-    def _process_frame(self, frame, ctime):
-        results = self.model.track(frame, persist=True)
+    :param frame: The frame of the video.
+    :param track_id: The current id of the tracked object.
+    :param current_time: The current time in seconds.
+    :return: None
+    """
+    elapsed = current_time - motion_time[track_id]
+    motion = detect_motion(frame, track_id)
 
-        annotated_frame = frame.copy()
-        for result in results:
-            if not result.boxes or result.boxes.id is None:
-                continue
+    if motion:
+        _reset(track_id)
+    elif elapsed >= EMERGENCY_THRESHOLD:
+        frame = _preprocess_frame(frame, track_id)
+        prob = predict(frame)
 
-            boxes = result.boxes.xyxy.cpu().numpy()
-            confidences = result.boxes.conf.cpu().numpy()
-            classes = result.boxes.cls.cpu().numpy()
+        if prob <= 0.5:
+            tracker[track_id]['state'] = 'EMERGENCY'
 
-            indices = cv2.dnn.NMSBoxes(boxes.tolist(), confidences.tolist(),
-                                       score_threshold=0.5, nms_threshold=0.5)
 
-            if len(indices) > 0:
-                for i in indices.flatten():  # type: ignore
-                    box = boxes[i]
-                    cls = classes[i]
-                    conf = confidences[i]
-                    track_id = int(result.boxes.id[i])
+def detect_motion(frame, track_id):
+    """
+    Detect significant motion for a tracked object.
 
-                    if track_id not in self.history:
-                        self._reset(track_id)
+    :param frame: The frame of the video.
+    :param track_id: The current id of the tracked object.
+    :return: True if the object is in motion, False otherwise.
+    """
+    motion = False
+    x1, y1, x2, y2 = map(int, tracker[track_id]['bbox'])
 
-                    self.history[track_id]['bbox'] = box
+    gray = cv2.cvtColor(frame[y1:y2, x1:x2], cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
-                    if self.history[track_id]['state'] == 'MONITORING' and int(cls) == 1:
-                        self.history[track_id]['state'] = 'FALL_DETECTED'
-                        self.dtime[track_id] = ctime
-
-                    elif self.history[track_id]['state'] == 'FALL_DETECTED':
-                        if ctime - self.dtime[track_id] >= 2.0:
-                            self.history[track_id]['state'] = 'MOTION_TRACKING'
-                            self.mtime[track_id] = ctime
-                            self.last_pos[track_id] = box
-
-                    elif self.history[track_id]['state'] == 'MOTION_TRACKING':
-                        elapsed = ctime - self.mtime[track_id]
-                        motion = self._detect_motion(frame, track_id)
-
-                        if motion:
-                            self._reset(track_id)
-                        elif elapsed >= 3.0:
-                            with torch.no_grad():
-                                frame = self._preprocess_frame(frame, track_id)
-                                pose_keypoints = extract_pose_keypoints(frame)
-                                pose_keypoints = pose_keypoints.reshape(1, -1)
-
-                                m = joblib.load('../data/weights/best_rf_model_M.pkl')
-                                emergency_prob = m.predict_proba(pose_keypoints)[0, 1]
-                                print("EMERGENCY DETECTED: ", emergency_prob)
-                            if emergency_prob <= 0.5:
-                                self.history[track_id]['state'] = 'EMERGENCY'
-
-                    annotated_frame = self._draw(annotated_frame, track_id, self._get_state_color(track_id))
-
-        cv2.imshow("Bot Brigade", annotated_frame)
-
-    def _preprocess_frame(self, frame, track_id):
-        x1, y1, x2, y2 = map(int, self.history[track_id]['bbox'])
-        frame = frame[y1:y2, x1:x2]
-
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame = cv2.resize(frame, (256, 256))
-
-        return frame
-
-    def _draw(self, frame, track_id, color):
-        x1, y1, x2, y2 = map(int, self.history[track_id]['bbox'])
-
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-
-        label = f"ID: {track_id}, State: {self.history[track_id]['state']}"
-        label_position = (x1, y1 - 10)
-        cv2.putText(frame, label, label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, lineType=cv2.LINE_AA)
-
-        return frame
-
-    def _get_state_color(self, track_id):
-        state = self.history[track_id]['state']
-        if state == 'FALL_DETECTED':
-            return 0, 165, 255
-        elif state == 'MOTION_TRACKING':
-            return 0, 255, 255
-        elif state == 'EMERGENCY':
-            return 0, 0, 255
-        return 0, 255, 0
-
-    def _reset(self, track_id):
-        self.history[track_id] = {'state': 'MONITORING', 'bbox': None}
-        self.dtime[track_id] = 0.0
-        self.mtime[track_id] = 0.0
-        self.last_pos[track_id] = None
-        self.static_back[track_id] = None
-
-    def _detect_motion(self, frame, track_id):
-        motion = False
-        x1, y1, x2, y2 = map(int, self.history[track_id]['bbox'])
-
-        gray = cv2.cvtColor(frame[y1:y2, x1:x2], cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (21, 21), 0)
-
-        if self.static_back[track_id] is None or self.static_back[track_id].shape != gray.shape:  # type: ignore
-            self.static_back[track_id] = gray  # type: ignore
-            return motion
-
-        diff_frame = cv2.absdiff(self.static_back[track_id], gray)  # type: ignore
-        thresh_frame = cv2.threshold(diff_frame, 30, 255, cv2.THRESH_BINARY)[1]
-        thresh_frame = cv2.dilate(thresh_frame, None, iterations=1)  # type: ignore
-        cnts, _ = cv2.findContours(thresh_frame.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        for contour in cnts:
-            if cv2.contourArea(contour) < 10000:
-                continue
-            motion = True
-
+    if tracker[track_id]['static_back'] is None or tracker[track_id]['static_back'].shape != gray.shape:  # type: ignore
+        tracker[track_id]['static_back'] = gray  # type: ignore
         return motion
 
-    def process_video(self) -> None:
-        cap = cv2.VideoCapture(self.video)
-        start = time.time()
+    diff_frame = cv2.absdiff(tracker[track_id]['static_back'], gray)  # type: ignore
+    thresh_frame = cv2.threshold(diff_frame, 30, 255, cv2.THRESH_BINARY)[1]
+    thresh_frame = cv2.dilate(thresh_frame, None, iterations=1)  # type: ignore
+    cnts, _ = cv2.findContours(thresh_frame.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        while cap.isOpened():
-            success, frame = cap.read()
+    for contour in cnts:
+        if cv2.contourArea(contour) < MOVEMENT_THRESHOLD:
+            continue
+        motion = True
 
-            if not success:
-                break
+    return motion
 
-            ctime = time.time() - start
-            self._process_frame(frame, ctime)
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+def extract_kps(image):
+    """"
+    Extract keypoints from an image using MediaPipe Pose.
 
-        cap.release()
-        cv2.destroyAllWindows()
+    :param image: The image to be processed.
+    :return: The keypoints extracted from the image.
+    """
+    result = pose.process(image)
+    kps = np.zeros(33 * 3)
+
+    if result.pose_landmarks:
+        for i, landmark in enumerate(result.pose_landmarks.landmark):  # ignore
+            kps[i * 3:i * 3 + 3] = [landmark.x, landmark.y, landmark.z]
+
+    return kps
+
+
+def predict(frame):
+    """
+    Makes a prediction based on the extracted keypoints.
+
+    :param frame: The frame of the video.
+    :return: The predicted probability.
+    """
+    pose_keypoints = extract_kps(frame).reshape(1, -1)
+    return rf_model.predict_proba(pose_keypoints)[0, 1]
+
+
+def _preprocess_frame(frame, track_id):
+    """
+    Makes a prediction based on the extracted keypoints.
+
+    :param frame: The frame of the video.
+    :param track_id: The current id of the tracked object.
+    :return: The predicted probability.
+    """
+    x1, y1, x2, y2 = map(int, tracker[track_id]['bbox'])
+
+    frame = frame[y1:y2, x1:x2]
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    frame = cv2.resize(frame, (256, 256))
+
+    return frame
+
+
+def _draw(frame, track_id, color):
+    """
+    Draw a bounding box and state label on the frame for a tracked object.
+
+    :param frame: The frame of the video.
+    :param track_id: The current id of the tracked object.
+    :param color: The border color of the drawn bounding box.
+    :return: The frame with drawn bounding box.
+    """
+    x1, y1, x2, y2 = map(int, tracker[track_id]['bbox'])
+
+    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+
+    label = f"ID: {track_id}, State: {tracker[track_id]['state']}"
+    label_position = (x1, y1 - 10)
+
+    cv2.putText(frame, label, label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, lineType=cv2.LINE_AA)
+
+    return frame
+
+
+def color_map(track_id):
+    """
+    Determine color of bounding box by state of detected object.
+
+    :param track_id: The current id of the tracked object.
+    :return: The color of the bounding box.
+    """
+    cmap = {
+        'FALL_DETECTED': (0, 165, 255),
+        'MOTION_TRACKING': (0, 255, 255),
+        'EMERGENCY': (0, 0, 255),
+    }
+    return cmap.get(tracker[track_id]['state'], (0, 255, 0))
+
+
+def _reset(track_id):
+    """
+    Reset the tracker to its default position
+
+    :param track_id: The current id of the tracked object.
+    :return: None
+    """
+    detection_time[track_id] = 0.0
+    motion_time[track_id] = 0.0
+
+    tracker[track_id] = {
+        'state': 'MONITORING',
+        'bbox': None,
+        'static_back': None
+    }
+
+
+def process_video(video) -> None:
+    """
+    Entry point for processing video.
+
+    :param video: The video to be processed.
+    :return: None
+    """
+    cap = cv2.VideoCapture(video)
+    start = time.time()
+
+    while cap.isOpened():
+        success, frame = cap.read()
+
+        if not success:
+            break
+
+        current_time = time.time() - start
+        _process_frame(frame, current_time)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':
-    Tracker('../data/pipeline_eval_data/simulation_chantier_2.mp4')
+    pass
+
+
