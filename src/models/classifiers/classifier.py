@@ -1,17 +1,18 @@
-from comet_ml import Experiment
-import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
 import numpy as np
-from pathlib import Path
+import optuna
+import torch.nn as nn
+from PIL import Image
+from torch import optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.utils.data import Dataset, DataLoader
 import yaml
+from torchvision.transforms import transforms
 from tqdm import tqdm
-import cv2
-import mediapipe as mp
 from src.models.metrics.metrics import calculate_metrics
-from absl import logging
-import os
-import warnings
+from torchvision import transforms
+import cv2
+import torch
+from pathlib import Path
 
 
 class FallImageDataset(Dataset):
@@ -53,13 +54,14 @@ class FallImageDataset(Dataset):
         image = cv2.resize(image, (
             self.config['model']['classifier']['input_size'],
             self.config['model']['classifier']['input_size']))
-        image = image / 255.0
-        image = np.transpose(image, (2, 0, 1))
+
+        image = np.array(image, dtype=np.float32) / 255.0
+        image = torch.tensor(image).permute(2, 0, 1)  # Convert HWC to CHW format
 
         label = torch.tensor(sample['label'], dtype=torch.float32)
 
         return {
-            'image': torch.tensor(image, dtype=torch.float32),
+            'image': image,
             'label': label
         }
 
@@ -105,31 +107,28 @@ class CNN(nn.Module):
 
 
 class ClassifierTrainer:
-    def __init__(self, config_path):
+    def __init__(self, config_path, trial=None):
         with open(config_path) as f:
             self.config = yaml.safe_load(f)
 
-        # Comet ML Experiment
-        # self.experiment = Experiment(
-        #     api_key="Mo41H6DYUmGophP0c4VRLAo7Z",
-        #     project_name="general",
-        #     workspace="mxttywxtty"
-        # )
-        # self.experiment.log_parameters(self.config)
+        # If trial is provided, use hyperparameters from Optuna's trial
+        self.trial = trial
+        if self.trial:
+            self.config['model']['classifier']['learning_rate'] = self.trial.suggest_float('learning_rate', 1e-5, 1e-2, log=True)
+            self.config['model']['classifier']['weight_decay'] = self.trial.suggest_float('weight_decay', 1e-6, 1e-3, log=True)
+            self.config['model']['classifier']['dropout'] = self.trial.suggest_float('dropout', 0.2, 0.5)
 
         self.device = self.config['system']['device']
-
         self.classifier = CNN(self.config).to(self.device)
 
-        self.optimizer = torch.optim.Adam(
+        self.optimizer = optim.Adam(
             self.classifier.parameters(),
             lr=self.config['training_classifier']['learning_rate'],
             weight_decay=self.config['training_classifier']['weight_decay']
         )
 
         self.criterion = nn.BCELoss()
-
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        self.scheduler = ReduceLROnPlateau(
             self.optimizer, mode='min', patience=5, factor=0.5
         )
 
@@ -173,7 +172,30 @@ class ClassifierTrainer:
         metrics = calculate_metrics(all_preds_binary, all_labels)
         metrics['loss'] = total_loss / len(self.train_loader)
 
-        # self.experiment.log_metrics(metrics, step=None)
+        return metrics
+
+    def validate_epoch(self):
+        self.classifier.eval()
+        total_loss = 0
+        all_preds = []
+        all_labels = []
+
+        with torch.no_grad():
+            for batch in tqdm(self.valid_loader, desc="Validating"):
+                images = batch['image'].to(self.device)
+                labels = batch['label'].to(self.device)
+
+                outputs = self.classifier(images)
+                loss = self.criterion(outputs, labels.unsqueeze(1))
+
+                total_loss += loss.item()
+                all_preds.extend(outputs.detach().cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
+
+        all_preds_binary = (np.array(all_preds) > 0.5).astype(int)
+
+        metrics = calculate_metrics(all_preds_binary, all_labels)
+        metrics['loss'] = total_loss / len(self.valid_loader)
 
         return metrics
 
@@ -186,12 +208,19 @@ class ClassifierTrainer:
             train_metrics = self.train_epoch()
             print('Training metrics:', train_metrics)
 
-            self.scheduler.step(train_metrics['loss'])
+            valid_metrics = self.validate_epoch()
+            print('Validation metrics:', valid_metrics)
 
-            if train_metrics['loss'] < best_val_loss:
-                best_val_loss = train_metrics['loss']
-                self.save_checkpoint('best_model.pth')
-                # self.experiment.log_model("best_model", "best_model.pth")
+            self.scheduler.step(valid_metrics['loss'])
+
+            if valid_metrics['loss'] < best_val_loss:
+                best_val_loss = valid_metrics['loss']
+                self.save_checkpoint('../../data/weights/best_model_m.pth')
+
+        if self.trial:
+            self.trial.report(valid_metrics['loss'], epoch)
+            if self.trial.should_prune():
+                raise optuna.exceptions.TrialPruned()
 
     def save_checkpoint(self, filename):
         checkpoint = {

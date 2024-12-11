@@ -12,7 +12,7 @@ model:
     num_layers: 4
     kernel_size: 3
     dropout: 0.5
-    model_path: "C:/Users/mathi/Documents/GitHub/ai-bot-brigade/src/models/classifiers/best_model.pth"
+    model_path: "C:/Users/mathi/OneDrive/Desktop/projects/bot-brigade/src/models/classifiers/best_model_m.pth"
 
 training_detector:
   epochs: 100
@@ -36,7 +36,7 @@ classifier_data:
 
 system:
   device: "cuda"
-  num_workers: 4
+  num_workers: 2
 
 evaluation:
   ground_truth_path: "C:/Users/mathi/Documents/GitHub/ai-bot-brigade/src/data/evaluation_data/ground_truth.json"

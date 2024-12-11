@@ -1,13 +1,32 @@
 import time
 from collections import defaultdict
 import cv2
+import joblib
 import numpy as np
 import torch
 import yaml
-from torchvision.transforms import transforms
 from ultralytics import YOLO
+import mediapipe as mp
 
 from src.models.classifiers.classifier import CNN
+
+mp_pose = mp.solutions.pose
+pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
+
+def extract_pose_keypoints(image):
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    result = pose.process(image_rgb)
+
+    keypoints = np.zeros((33 * 3))
+
+    if result.pose_landmarks:
+        for i, landmark in enumerate(result.pose_landmarks.landmark):
+            keypoints[i * 3] = landmark.x
+            keypoints[i * 3 + 1] = landmark.y
+            keypoints[i * 3 + 2] = landmark.z
+
+    return np.array(keypoints).flatten()
 
 
 class Tracker:
@@ -77,9 +96,13 @@ class Tracker:
                             self._reset(track_id)
                         elif elapsed >= 3.0:
                             with torch.no_grad():
-                                frame_tensor = self._preprocess_frame(frame, track_id)
-                                output = self.classifier(frame_tensor)
-                                emergency_prob = output.item()
+                                frame = self._preprocess_frame(frame, track_id)
+                                pose_keypoints = extract_pose_keypoints(frame)
+                                pose_keypoints = pose_keypoints.reshape(1, -1)
+
+                                m = joblib.load('../data/weights/best_rf_model_M.pkl')
+                                emergency_prob = m.predict_proba(pose_keypoints)[0, 1]
+                                print("EMERGENCY DETECTED: ", emergency_prob)
                             if emergency_prob <= 0.5:
                                 self.history[track_id]['state'] = 'EMERGENCY'
 
@@ -93,34 +116,17 @@ class Tracker:
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame = cv2.resize(frame, (256, 256))
-        frame = frame / 255.0
-        frame = np.transpose(frame, (2, 0, 1))
 
-        return torch.tensor(frame, dtype=torch.float32).unsqueeze(0).to(self.device)
+        return frame
 
     def _draw(self, frame, track_id, color):
-        x1, y1, x2, y2 = self.history[track_id]['bbox']
+        x1, y1, x2, y2 = map(int, self.history[track_id]['bbox'])
 
-        cv2.rectangle(
-            frame,
-            (int(x1), int(y1)),
-            (int(x2), int(y2)),
-            color,
-            2,
-        )
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
         label = f"ID: {track_id}, State: {self.history[track_id]['state']}"
-        label_position = (int(x1), int(y1) - 10)
-        cv2.putText(
-            frame,
-            label,
-            label_position,
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            color,
-            2,
-            lineType=cv2.LINE_AA
-        )
+        label_position = (x1, y1 - 10)
+        cv2.putText(frame, label, label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, lineType=cv2.LINE_AA)
 
         return frame
 
@@ -185,4 +191,4 @@ class Tracker:
 
 
 if __name__ == '__main__':
-    Tracker('../data/pipeline_eval_data/sudden cardiac arrest tatami.webm')
+    Tracker('../data/pipeline_eval_data/simulation_chantier_2.mp4')
