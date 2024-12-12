@@ -259,7 +259,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
         new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, no_motion, on_the_ground, alert_state, alert]], columns=columns)
 
-        track_history[track_id] = pd.concat([tracks_history[track_id], new_record], ignore_index=True)
+        track_history[track_id] = pd.concat([track_history[track_id], new_record], ignore_index=True)
 
         if len(track_history[track_id]) > max_history_len:
             track_history[track_id] = track_history[track_id].drop(track_history[track_id]['frame_nb'].idxmin())
