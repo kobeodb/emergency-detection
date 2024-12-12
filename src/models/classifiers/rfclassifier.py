@@ -1,4 +1,5 @@
 import os
+from typing import Tuple
 
 import cv2
 import joblib
@@ -12,33 +13,53 @@ from sklearn.metrics import accuracy_score
 import optuna
 
 mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+pose = mp_pose.Pose(min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5)
 
 
-def extract_pose_keypoints(image):
-    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    result = pose.process(image_rgb)
-
-    keypoints = np.zeros((33 * 3))
+def extract_kps(image):
+    result = pose.process(image)
+    kps = np.zeros(33 * 3)
 
     if result.pose_landmarks:
-        for i, landmark in enumerate(result.pose_landmarks.landmark):
-            keypoints[i * 3] = landmark.x
-            keypoints[i * 3 + 1] = landmark.y
-            keypoints[i * 3 + 2] = landmark.z
+        for i, landmark in enumerate(result.pose_landmarks.landmark):  # ignore
+            kps[i * 3:i * 3 + 3] = [landmark.x, landmark.y, landmark.z]
 
-    return np.array(keypoints).flatten()
+    return kps
 
 
-def load_data(fall_dir, not_fall_dir):
+def augment_image(image):
+    if np.random.rand() > 0.5:
+        image = cv2.flip(image, 1)
+
+    angle = np.random.uniform(-30, 30)
+    h, w = image.shape[:2]
+    center = (w // 2, h // 2)
+    rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+    image = cv2.warpAffine(image, rotation_matrix, (w, h))
+
+    factor = np.random.uniform(0.7, 1.3)
+    image = cv2.convertScaleAbs(image, alpha=factor, beta=0)
+
+    return image
+
+
+def load_data(fd: str, nfd: str, augment=False) -> Tuple[np.array, np.array]:
     data = []
     labels = []
-    for label, directory in enumerate([fall_dir, not_fall_dir]):
-        for filename in os.listdir(directory):
+    for label, _dir in enumerate([fd, nfd]):
+        for filename in os.listdir(_dir):
             if filename.endswith('.jpg') or filename.endswith('.png') or filename.endswith('.jpeg'):
-                img_path = os.path.join(directory, filename)
+                img_path = os.path.join(_dir, filename)
                 img = cv2.imread(img_path)
-                kps = extract_pose_keypoints(img)
+                kps = extract_kps(img)
+
+                if augment:
+                    for _ in range(3):
+                        augmented_img = augment_image(img)
+                        augmented_kps = extract_kps(augmented_img)
+                        data.append(augmented_kps)
+                        labels.append(label)
 
                 data.append(kps)
                 labels.append(label)
@@ -60,38 +81,34 @@ def objective(trial):
                                    max_features=max_features,
                                    random_state=42)
 
-    # Train the model
     model.fit(X_train, y_train)
 
-    # Evaluate the model
     y_pred = model.predict(X_val)
+    acc = accuracy_score(y_val, y_pred)
+
+    return acc
+
+
+if __name__ == '__main__':
+    fall_dir = '../../data/classification_data/fall'
+    not_fall_dir = '../../data/classification_data/not-fall'
+
+    X, y = load_data(fall_dir, not_fall_dir, augment=True)
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    study = optuna.create_study(direction='maximize')
+    study.optimize(objective, n_trials=100)
+
+    best_params = study.best_params
+
+    print(f"Best hyperparameters: {study.best_params}")
+    print(f"Best accuracy: {study.best_value}")
+
+    best_rf_model = RandomForestClassifier(**best_params, random_state=42)
+    best_rf_model.fit(X_train, y_train)
+
+    y_pred = best_rf_model.predict(X_val)
     accuracy = accuracy_score(y_val, y_pred)
+    print(f"Final model accuracy: {accuracy}")
 
-    return accuracy  # Objective to maximize is accuracy
-
-
-fall_dir = '../../data/classification_data/fall'
-not_fall_dir = '../../data/classification_data/not-fall'
-
-X, y = load_data(fall_dir, not_fall_dir)
-X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
-
-study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=100)
-
-best_params = study.best_params
-
-# Print the best parameters and accuracy
-print(f"Best hyperparameters: {study.best_params}")
-print(f"Best accuracy: {study.best_value}")
-
-# Train the RandomForestClassifier with the best parameters
-best_rf_model = RandomForestClassifier(**best_params, random_state=42)
-best_rf_model.fit(X_train, y_train)
-
-# Evaluate on the validation set
-y_pred = best_rf_model.predict(X_val)
-accuracy = accuracy_score(y_val, y_pred)
-print(f"Final model accuracy: {accuracy}")
-
-joblib.dump(best_rf_model, '../weights/best_rf_model_M.pkl')
+    joblib.dump(best_rf_model, '../weights/best_rf_model_M.pkl')

@@ -28,7 +28,7 @@ motion_time = defaultdict(float)
 tracker = defaultdict(lambda: {'state': 'MONITORING', 'bbox': None, 'static_back': None})
 
 
-def process_frame(frame, current_time):
+def process_frame(frame, current_time) -> None:
     """
     Process a single frame of the video, detecting and tracking falls.
 
@@ -63,15 +63,24 @@ def process_frame(frame, current_time):
     cv2.imshow("Bot Brigade", annotated_frame)
 
 
-def process_box(frame, track_id, box, cls, current_time):
+def process_box(frame, track_id, box, cls, current_time) -> None:
     """
-    Process a detected bounding box for a tracked object.
+    Process a detected bounding box for a tracked object and update its state.
 
-    :param frame: The frame of the video.
-    :param track_id: The current id of the tracked object.
-    :param box: The detected bounding box.
-    :param cls: The class of the detected predicted object.
-    :param current_time: The current time in seconds.
+    This function updates the bounding box (`bbox`) and state of a tracked object based on its current state
+    and the detected object's class. It handles transitions between the following states:
+
+    - MONITORING: If the object's class matches the target class (e.g., class `1` for a fall), the state
+                  changes to `FALL_DETECTED` and the detection time is recorded.
+    - FALL_DETECTED: If enough time has passed since the fall was detected, the state changes to
+                     `MOTION_TRACKING`, and the motion tracking start time is recorded.
+    - MOTION_TRACKING: Calls the `handle_motion` function to process motion detection logic for the object.
+
+    :param frame: The current frame of the video.
+    :param track_id: The unique identifier for the tracked object.
+    :param box: The detected bounding box for the object.
+    :param cls: The class of the detected object, used to identify specific scenarios (e.g., falls).
+    :param current_time: The current time in seconds, used for time-based state transitions.
     :return: None
     """
     tracker[track_id]['bbox'] = box
@@ -116,6 +125,13 @@ def detect_motion(frame, track_id):
     """
     Detect significant motion for a tracked object.
 
+    This function determines if a tracked object is in motion by analyzing changes in its region of interest (ROI)
+    between frames. It uses the object's bounding box to isolate its ROI, converts it to grayscale, and applies
+    Gaussian blur to reduce noise. A static background is maintained for each tracked object, and the function
+    computes the absolute difference between the current ROI and the static background. Thresholding and contour
+    detection are then applied to identify significant changes. If any detected contour exceeds a predefined
+    movement threshold, the function identifies the object as being in motion.
+
     :param frame: The frame of the video.
     :param track_id: The current id of the tracked object.
     :return: True if the object is in motion, False otherwise.
@@ -144,11 +160,17 @@ def detect_motion(frame, track_id):
 
 
 def extract_kps(image):
-    """"
+    """
     Extract keypoints from an image using MediaPipe Pose.
 
-    :param image: The image to be processed.
-    :return: The keypoints extracted from the image.
+    This function processes an input image using MediaPipe Pose to extract the 3D keypoints of a human pose.
+    The function initializes an array to store the keypoints, and if pose landmarks are detected in the image,
+    it iterates over each landmark to extract its x, y, and z coordinates. These coordinates are stored
+    sequentially in the array.
+
+    :param image: The input image to be processed.
+    :return: A NumPy array containing the keypoints extracted from the image.
+             The array has a length of 99 (33 landmarks * 3 coordinates per landmark).
     """
     result = pose.process(image)
     kps = np.zeros(33 * 3)
@@ -162,10 +184,14 @@ def extract_kps(image):
 
 def predict(frame):
     """
-    Makes a prediction based on the extracted keypoints.
+    Predict the probability of a specific outcome based on pose keypoints.
 
-    :param frame: The frame of the video.
-    :return: The predicted probability.
+    This function extracts keypoints from a given video frame using the `extract_kps` function. The extracted
+    keypoints are reshaped into a format suitable for input to a pre-trained random forest model (`rf_model`).
+    The model then outputs a probability prediction, specifically the likelihood of the target class.
+
+    :param frame: The current frame of the video to be analyzed.
+    :return: The predicted probability for the target class, as a float value.
     """
     pose_keypoints = extract_kps(frame).reshape(1, -1)
     return rf_model.predict_proba(pose_keypoints)[0, 1]

@@ -62,7 +62,7 @@ class EvaluationTable:
             alerts_false = []
             alerts_missed = []
 
-            for gt_frame in ground_truth_frame:  #should be 1 frame
+            for gt_frame in ground_truth_frame:  # should be 1 frame
                 found = False
                 for alert_frame in alerts_generated:
                     if abs(gt_frame - alert_frame) <= self.FRAME_THRESHOLD:
