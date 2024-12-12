@@ -11,12 +11,17 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 
+from sympy.codegen.ast import continue_
 from torch.backends.mkl import verbose
 
 from data.movies_2_use.student_files import *
 from data.movies_2_use.my_files import *
 
 videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
+
+device = 'mps'
+# device = 'cuda'
+# device = 'cpu'
 
 visualize_bbox = True
 
@@ -50,6 +55,11 @@ prob_thres_classifier = 0.5 #if prob < threshold
 
 acc_in_sec_of_alert = 5 #amount of seconds in where a frame alert is considered correct.
 
+########################################################
+
+use_mediapipe_pose = True
+use_yolo_pose = False
+assert not (use_yolo_pose and use_mediapipe_pose), "both variable cannot be true at the same time"
 
 #######################################################
 
@@ -108,8 +118,18 @@ if use_ft_yolo:
 if double_check_through_img_classifier:
     import torch
     import yaml
+    from models.classifiers.classifier import CNN
 
-    #import the trained classifier weights
+    config_path = '../config/config.yaml'
+    with open(config_path) as f:
+        config = yaml.safe_load()
+
+    img_classifier  = CNN(config).to(device)
+    checkpoint = torch.load(Path(classifier_dir / 'best_model.pth'), map_location=device)
+    img_classifier.load_state_dict(checkpoint['classifier_state_dict'])
+    img_classifier.eval()
+
+    classifier_input_size = 128
 
 
 #colors
@@ -129,11 +149,47 @@ emergency_detected=RED
 
 ##########################################################
 
-def check_if_person_has_fallen():
-    #custom logic for fall detection
+columns=['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'no_motion', 'on_the_ground', 'alert_state', 'alert' ]
+
+def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id):
+    motion_threshold = 10000
+
+    track_data = track_history[track_id]
+    #todo -> my brain isn't braining
     return
 
-def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, aspect_ratio_bbox):
+def check_if_person_is_on_the_ground():
+    if use_custom_fall_detection:
+        #todo -> this shit should probably not be in the same function but who cares
+        return
+
+    if use_ft_yolo:
+        #todo -> what he said
+        return
+
+    return
+
+def check_for_alert(track_history, number_max_frames):
+    number_frames = min(number_max_frames, len(track_history))
+    last_frames = track_history[-number_frames:]
+    alerts = last_frames[last_frames['alert']]
+
+    if not alerts.empty():
+        return True
+    else:
+        return False
+
+
+def crop_bbox(xmin, ymin, w, h, frame):
+    xmax = xmin + w
+    ymax = ymin + h
+
+    cropped_frame = frame[ymin:ymax, xmin:xmax]
+
+    return cropped_frame
+
+
+def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox):
     """
     :param track_history:  track history containing tracking history of al all tracked objects
                            Each key is unique using track_id, and the value is a dataframe containing
@@ -146,7 +202,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
     :param w_bbox:         width of the tracked bbox
     :param h_bbox:         height of the tracked bbox
     :param area_bbox:      calculated area of the tracked bbox
-    :param aspect_ratio:   aspect ration of the tracked bbox
+    # :param aspect_ratio:   aspect ration of the tracked bbox
 
     """
 
@@ -154,6 +210,61 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
     fall_detected_in_last_x_frames = False
     latest_fall_frame = None
     nb_frames_no_motion = None
+
+    if track_id not in track_history:
+        no_motion = False
+        on_the_ground = False
+        new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, no_motion, on_the_ground, False, False]], columns=columns)
+        track_history[track_id] = new_record
+
+    else:
+        no_motion = check_for_motion()
+        on_the_ground = check_if_person_is_on_the_ground()
+
+        if on_the_ground and no_motion:
+            print('mathafoka might be dede #skillIssue')
+            alert_state = True
+
+        #todo -> alert state rework
+
+        alr_alerted = check_for_alert(track_history, number_max_frames=len(track_history))
+        if double_check_through_img_classifier and not alr_alerted:
+            if alert_state:
+                with torch.no_grad:
+                    cropped_frame = crop_bbox(xmin, ymin, w, h, frame)
+                    crop_tensor = cv2.resize(cropped_frame, (128, 128))
+                    crop_tensor = torch.tensor(crop_tensor, dtype=torch.float32).permute(2, 0, 1)
+                    crop_tensor = crop_tensor.unsqueeze(0).to(device)
+                    prediction = img_classifier(crop_tensor)
+                    score = prediction.item()
+
+                    if score > prob_thres_classifier:
+                        pred_label_index = 0
+                    if score < prob_thres_classifier:
+                        pred_label_index = 1
+
+                    class_names = ("emergency", "no emergency")
+                    predicted_label = class_names[pred_label_index]
+
+                    if predicted_label == 'no emergency':
+                        alert_state = False
+                    print(f'Classifier predicted: {predicted_label} with probability: {score} on frame {frame_nb}')
+
+        if double_check_through_pose_classifier and not alr_alerted:
+            #todo -> implement this shit
+            print("shitty shit needs to be implemented first BOMBACLAT")
+
+        if alert_state:
+            alert = True
+
+        new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, no_motion, on_the_ground, alert_state, alert]], columns=columns)
+
+        track_history[track_id] = pd.concat([tracks_history[track_id], new_record], ignore_index=True)
+
+        if len(track_history[track_id]) > max_history_len:
+            track_history[track_id] = track_history[track_id].drop(track_history[track_id]['frame_nb'].idxmin())
+    return track_history,no_motion,on_the_ground,alert
+
 
 
 
@@ -206,7 +317,7 @@ for vid in videos_2b_tested:
     detection_times = []
     frame_count = 0
     alerts_generated = []
-    tracks_history = {}
+    track_history = {}
     max_history_len=max_frames_fall_motion_tracking+max_frames_fall_motion_tracking+10
 
     detections_file = (
@@ -238,7 +349,6 @@ for vid in videos_2b_tested:
             # Detection
             #########################
 
-
             tracked_results = yolo_detect_model_path.track(frame, verbose=False, persist=True)[0]
 
             bboxs_and_conf_clss = []
@@ -248,20 +358,20 @@ for vid in videos_2b_tested:
             xywhs = tracked_results.boxes.xywh.int().toList()       #average x, y -> middle x/y value
                                                                     #w, h -> width, height of bbox
             track_ids = tracked_results.boxes.id.int().tolist()     #Unique track id for each bbox
-            class_ids = tracked_results.boxes.cls.int().tolist()    #class idea fir each bbox
+            cls_ids = tracked_results.boxes.cls.int().tolist()      #class idea fir each bbox
             confs = tracked_results.boxes.conf().tolist()           #confidence scores
 
-            for xyxy, xywh, track_id, class_id, conf in zip(xyxys, xywhs, track_ids, class_ids, confs):
+            for xyxy, xywh, track_id, cls_id, conf in zip(xyxys, xywhs, track_ids, cls_ids, confs):
 
                 xmin, ymin, xmax, ymax = xyxy
                 x_av, y_av, bbox_w, bbox_h = xywh
 
-                cls_name = yolo_class_dict[class_id]
+                cls_name = yolo_class_dict[cls_id]
 
                 if float(conf) < conf_thres_detection:
                     continue
 
-                bboxs_and_conf_clss.append([[xmin, ymin, bbox_w, bbox_h], conf, class_id, track_id])
+                bboxs_and_conf_clss.append([[xmin, ymin, bbox_w, bbox_h], conf, cls_id, track_id])
 
                 if store_tracked_detections_in_file:
                     new_row = {'frame': frame_count, 'detections': bboxs_and_conf_clss}
@@ -269,44 +379,35 @@ for vid in videos_2b_tested:
                     detections_df = pd.concat([detections_df, new_row_df], ignore_index=True, axis=0)
 
 
-
-
             if detect_alerts:
                 #######################################
                 # Alert
                 #######################################
                 if double_check_through_img_classifier:
+                    xywh = bboxs_and_conf_clss[0]
+                    confidence = bboxs_and_conf_clss[1]
+                    cls_id = bboxs_and_conf_clss[2]
+                    cls_name = yolo_class_dict[cls_id]
+                    track_id = bboxs_and_conf_clss[3]
 
+                    xmin, ymin, w, h = xywh
+                    xmax = xmin + w
+                    ymax = ymin + h
 
+                    area = abs(w * h)
 
+                    cropped_frame = frame[ymin:ymax, xmin:xmax]
 
+                    if use_yolo_pose:
+                        #todo -> define which keypoints plez and implement this
+                        continue
+                    if use_mediapipe_pose:
+                        #todo -> implement this
+                        continue
 
+                    new_track_history, no_motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                    #todo: Continue the pipeline
 
 
 
