@@ -13,3 +13,5 @@ absl-py~=2.1.0
 PyQt5~=5.15.11
 Jinja2~=3.1.4
 rich~=13.9.4
+minio~=7.2.12
+python-dotenv~=1.0.1
