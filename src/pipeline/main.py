@@ -28,7 +28,7 @@ motion_time = defaultdict(float)
 tracker = defaultdict(lambda: {'state': 'MONITORING', 'bbox': None, 'static_back': None})
 
 
-def _process_frame(frame, current_time):
+def process_frame(frame, current_time):
     """
     Process a single frame of the video, detecting and tracking falls.
 
@@ -55,10 +55,10 @@ def _process_frame(frame, current_time):
                 track_id = int(result.boxes.id[i])
 
                 if track_id not in tracker:
-                    _reset(track_id)
+                    reset(track_id)
 
                 process_box(frame, track_id, boxes[i], classes[i], current_time)
-                annotated_frame = _draw(annotated_frame, track_id, color_map(track_id))
+                annotated_frame = draw(annotated_frame, track_id, color_map(track_id))
 
     cv2.imshow("Bot Brigade", annotated_frame)
 
@@ -103,9 +103,9 @@ def handle_motion(frame, track_id, current_time):
     motion = detect_motion(frame, track_id)
 
     if motion:
-        _reset(track_id)
+        reset(track_id)
     elif elapsed >= EMERGENCY_THRESHOLD:
-        frame = _preprocess_frame(frame, track_id)
+        frame = preprocess_frame(frame, track_id)
         prob = predict(frame)
 
         if prob <= 0.5:
@@ -171,7 +171,7 @@ def predict(frame):
     return rf_model.predict_proba(pose_keypoints)[0, 1]
 
 
-def _preprocess_frame(frame, track_id):
+def preprocess_frame(frame, track_id):
     """
     Makes a prediction based on the extracted keypoints.
 
@@ -188,7 +188,7 @@ def _preprocess_frame(frame, track_id):
     return frame
 
 
-def _draw(frame, track_id, color):
+def draw(frame, track_id, color):
     """
     Draw a bounding box and state label on the frame for a tracked object.
 
@@ -224,7 +224,7 @@ def color_map(track_id):
     return cmap.get(tracker[track_id]['state'], (0, 255, 0))
 
 
-def _reset(track_id):
+def reset(track_id):
     """
     Reset the tracker to its default position
 
@@ -258,7 +258,7 @@ def process_video(video) -> None:
             break
 
         current_time = time.time() - start
-        _process_frame(frame, current_time)
+        process_frame(frame, current_time)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -268,6 +268,5 @@ def process_video(video) -> None:
 
 
 if __name__ == '__main__':
-    pass
-
-
+    process_video(
+        "C:/Users/mathi/OneDrive/Desktop/projects/bot-brigade/src/data/evaluation_data/person_laying_but_ok_1.mp4")
