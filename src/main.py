@@ -72,8 +72,8 @@ assert not (double_check_through_img_classifier and double_check_through_pose_cl
 #######################################################
 ## fall detection configuration
 
-use_custom_fall_detection = True
-use_ft_yolo = False
+use_custom_fall_detection = False
+use_ft_yolo = True
 assert not (use_custom_fall_detection and use_ft_yolo),"both variables cannot be True at the same time"
 
 #######################################################
@@ -279,6 +279,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
     else:
         no_motion = check_for_motion(frame, xmin, ymin, h, w, track_history, track_id)
+        print(cls_name)
         on_the_ground = check_if_person_is_on_the_ground(cls_name)
 
         if use_static_back_motion:
@@ -337,6 +338,11 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
 
 ##########################################################
+## Run the Algorithm over all te benchmark videos
+## Videos are being retrieved from minio and stored in a temporary file
+## Algorithm steps:
+##       - Detection
+##       - Alert
 
 tot_vids=0
 for vid in videos_2b_tested:
@@ -494,7 +500,7 @@ for vid in videos_2b_tested:
                         if on_the_ground:
                             bbox_color = YELLOW
                             if no_motion:
-                                bbox_color - ORANGE
+                                bbox_color = ORANGE
                         else:
                             bbox_color = GREEN
 
