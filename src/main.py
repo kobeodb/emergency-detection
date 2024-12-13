@@ -146,7 +146,7 @@ emergency_detected=RED
 
 ##########################################################
 
-columns=['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'no_motion', 'on_the_ground', 'alert_state', 'alert' ]
+columns=['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'no_motion', 'on_the_ground', 'trigger_classifier', 'alert' ]
 
 def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id):
     motion_threshold = 10000
@@ -166,7 +166,7 @@ def check_if_person_is_on_the_ground():
 
     return
 
-def check_for_alert(track_history, number_max_frames):
+def check_for_alert_in_history(track_history, number_max_frames):
     number_frames = min(number_max_frames, len(track_history))
     last_frames = track_history[-number_frames:]
     alerts = last_frames[last_frames['alert']]
@@ -175,6 +175,16 @@ def check_for_alert(track_history, number_max_frames):
         return True
     else:
         return False
+
+def check_if_last_frame_was_alert(track_history):
+    last_alert = track_history[:-1]
+    is_alert = last_alert['alert']
+
+    if is_alert:
+        return True
+
+    return False
+
 
 
 def crop_bbox(xmin, ymin, w, h, frame):
@@ -220,13 +230,13 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
         if on_the_ground and no_motion:
             print('mathafoka might be dede #skillIssue')
-            alert_state = True
+            trigger_classifier = True
 
         #todo -> alert state rework
 
-        alr_alerted = check_for_alert(track_history, number_max_frames=len(track_history))
+        alr_alerted = check_for_alert_in_history(track_history, number_max_frames=len(track_history))
         if double_check_through_img_classifier and not alr_alerted:
-            if alert_state:
+            if trigger_classifier:
                 with torch.no_grad:
                     cropped_frame = crop_bbox(xmin, ymin, w, h, frame)
                     crop_tensor = cv2.resize(cropped_frame, (128, 128))
@@ -244,17 +254,17 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                     predicted_label = class_names[pred_label_index]
 
                     if predicted_label == 'no emergency':
-                        alert_state = False
+                        trigger_classifier = False
                     print(f'Classifier predicted: {predicted_label} with probability: {score} on frame {frame_nb}')
 
         if double_check_through_pose_classifier and not alr_alerted:
             #todo -> implement this shit
             print("shitty shit needs to be implemented first BOMBACLAT")
 
-        if alert_state:
+        if trigger_classifier:
             alert = True
 
-        new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, no_motion, on_the_ground, alert_state, alert]], columns=columns)
+        new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, no_motion, on_the_ground, trigger_classifier, alert]], columns=columns)
 
         track_history[track_id] = pd.concat([track_history[track_id], new_record], ignore_index=True)
 
@@ -380,7 +390,7 @@ for vid in videos_2b_tested:
                 #######################################
                 # Alert
                 #######################################
-                if double_check_through_img_classifier:
+                for bbox_and_conf_cls in bboxs_and_conf_clss:
                     xywh = bboxs_and_conf_clss[0]
                     confidence = bboxs_and_conf_clss[1]
                     cls_id = bboxs_and_conf_clss[2]
@@ -393,18 +403,52 @@ for vid in videos_2b_tested:
 
                     area = abs(w * h)
 
-                    cropped_frame = frame[ymin:ymax, xmin:xmax]
+                    if double_check_through_img_classifier:
 
-                    if use_yolo_pose:
-                        #todo -> define which keypoints plez and implement this
-                        continue
-                    if use_mediapipe_pose:
-                        #todo -> implement this
-                        continue
+                        cropped_frame = frame[ymin:ymax, xmin:xmax]
 
-                    new_track_history, no_motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area)
+                        new_track_history, no_motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area)
 
-                    #todo: Continue the pipeline
+                    if double_check_through_pose_classifier:
+                        if use_yolo_pose:
+                            #todo -> define which keypoints plez and implement this
+                            print('yolo pose needs to be implemented')
+                        if use_mediapipe_pose:
+                            #todo -> implement this
+                            print('mediapipe needs to be implemented')
+
+
+
+                    if check_if_last_frame_was_alert(new_track_history[track_id]):
+                        bbox_color = RED
+                        if emergency_detected == False:
+                            emergency_detected = True
+                            alerts_generated.append(frame_count)
+                    else:
+                        if on_the_ground:
+                            bbox_color = YELLOW
+                            if no_motion:
+                                bbox_color - ORANGE
+                        else:
+                            bbox_color = GREEN
+
+                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), bbox_color, thickness=2)
+                    # cv2.putText(f"{frame}, id: {track_id}, {(xmin + 5, ymin - 8)}, {cv2.FONT_HERSHEY_SIMPLEX}, {1}, ")
+
+
+    video_cap.release()
+    cv2.destroyAllWindows()
+
+
+#todo -> create the evaluation table
+
+
+
+
+
+
+
+
 
 
 
