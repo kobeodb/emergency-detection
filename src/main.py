@@ -32,28 +32,28 @@ visualize_bbox = True
 # detect_alerts=True
 
 ##Store tracked detection in file
-store_tracked_detections_in_file=True
-read_detections_from_file=False
-detect_alerts=False
+# store_tracked_detections_in_file=True
+# read_detections_from_file=False
+# detect_alerts=False
 
 ##Do everything without files
-# store_tracked_detections_in_file=False
-# read_detections_from_file=False
-# detect_alerts=True
+store_tracked_detections_in_file=False
+read_detections_from_file=False
+detect_alerts=True
 
 use_minio = True
 
 ##############################################################
 ## algorithm parameter configuration
 
-conf_thres_detection = 0.3 #minimum confidence for yolo detection.
-secs_fall_motion_tracking = 2 #maximum seconds between when a fall is detected and when motion tracking starts.
-secs_motion_tracking_double_check = 4 #seconds between the start of motion tracking and the double check with the classifier
+conf_thres_detection = 0.3              #minimum confidence for yolo detection.
+secs_fall_motion_tracking = 2           #maximum seconds between when a fall is detected and when motion tracking starts.
+secs_motion_tracking_double_check = 4   #seconds between the start of motion tracking and the double check with the classifier
 
-prob_thres_img_classifier = 0.5 #if prob < threshold
-                            # -> emergency, if prob < threshold -> fine.
+prob_thres_img_classifier = 0.5         #if prob < threshold -> emergency
+                                        #if prob > threshold -> fine
 
-acc_in_sec_of_alert = 5 #amount of seconds in where a frame alert is considered correct.
+acc_in_sec_of_alert = 5                 #amount of seconds in where a frame alert is considered correct.
 
 ########################################################
 ## pose estimator configuration
@@ -176,8 +176,6 @@ def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id) -> bool:
     if use_static_back_motion:
         motion_threshold = 10000
 
-        # track_data = track_history[track_id]
-
         xmax = xmin + w
         ymax = ymin + h
 
@@ -185,8 +183,8 @@ def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id) -> bool:
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
-        if track_history[track_id]['static_back'] == None:
-            track_history[track_id]['static_back'] = gray
+        if track_history[track_id].iloc[-1]['static_back'] is None:
+            track_history[track_id].iloc[-1]['static_back'] = gray
             return False
 
         diff_frame = cv2.absdiff(track_history[track_id]['static_back'], gray)
@@ -225,19 +223,17 @@ def check_for_alert_in_history(track_history, number_max_frames) -> bool:
     last_frames = track_history[-number_frames:]
     alerts = last_frames[last_frames['alert']]
 
-    if not alerts.empty():
+    if not alerts.empty:
         return True
     else:
         return False
 
 
 def check_if_last_frame_was_alert(track_history) -> bool:
-    last_alert = track_history[:-1]
+    last_alert = track_history.iloc[-1]
     is_alert = last_alert['alert']
 
-    if is_alert:
-        return True
-    return False
+    return bool(is_alert)
 
 
 def crop_bbox(xmin, ymin, w, h, frame):
@@ -268,6 +264,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
     alert = False
     static_back = None
+    trigger_classifier = False
 
     if track_id not in track_history:
         no_motion = False
@@ -281,7 +278,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
         track_history[track_id] = new_record
 
     else:
-        no_motion = check_for_motion()
+        no_motion = check_for_motion(frame, xmin, ymin, h, w, track_history, track_id)
         on_the_ground = check_if_person_is_on_the_ground(cls_name)
 
         if use_static_back_motion:
@@ -293,7 +290,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
         #todo -> alert state rework
 
-        alr_alerted = check_for_alert_in_history(track_history, number_max_frames=len(track_history))
+        alr_alerted = check_for_alert_in_history(track_history[track_id], number_max_frames=len(track_history[track_id]))
         if double_check_through_img_classifier and not alr_alerted:
             if trigger_classifier:
                 with torch.no_grad:
@@ -323,6 +320,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
         if trigger_classifier:
             alert = True
 
+        new_record = None
         if use_distance_motion:
             new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, no_motion, on_the_ground, trigger_classifier, alert, static_back]], columns=columns)
 
@@ -460,11 +458,11 @@ for vid in videos_2b_tested:
                 # Alert
                 #######################################
                 for bbox_and_conf_cls in bboxs_and_conf_clss:
-                    xywh = bboxs_and_conf_clss[0]
-                    confidence = bboxs_and_conf_clss[1]
-                    cls_id = bboxs_and_conf_clss[2]
+                    xywh = bbox_and_conf_cls[0]
+                    confidence = bbox_and_conf_cls[1]
+                    cls_id = bbox_and_conf_cls[2]
                     cls_name = yolo_class_dict[cls_id]
-                    track_id = bboxs_and_conf_clss[3]
+                    track_id = bbox_and_conf_cls[3]
 
                     xmin, ymin, w, h = xywh
                     xmax = xmin + w
@@ -485,8 +483,6 @@ for vid in videos_2b_tested:
                         if use_mediapipe_pose:
                             #todo -> implement this
                             print('mediapipe needs to be implemented')
-
-
 
                     if check_if_last_frame_was_alert(new_track_history[track_id]):
                         bbox_color = RED
