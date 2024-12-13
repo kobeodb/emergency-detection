@@ -11,9 +11,6 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 
-from sympy.codegen.ast import continue_
-from torch.backends.mkl import verbose
-
 from data.movies_2_use.student_files import *
 from data.movies_2_use.my_files import *
 
