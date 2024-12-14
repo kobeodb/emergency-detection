@@ -16,7 +16,8 @@ from ultralytics import YOLO
 from data.movies_2_use.student_files import *
 from data.movies_2_use.my_files import *
 
-videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
+# videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
+videos_2b_tested = student_positive_2b_tested
 
 device = 'mps'
 # device = 'cuda'
@@ -171,7 +172,6 @@ if use_distance_motion:
     columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'no_motion', 'on_the_ground', 'trigger_classifier', 'alert']
 
 
-
 def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id) -> bool:
     if use_static_back_motion:
         motion_threshold = 10000
@@ -183,26 +183,33 @@ def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id) -> bool:
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
-        if track_history[track_id].iloc[-1]['static_back'] is None:
-            track_history[track_id].iloc[-1]['static_back'] = gray
+        last_idx = track_history[track_id].index[-1]
+        static_back = track_history[track_id].loc[last_idx, 'static_back']
+
+        # If static_back is None or shape changed, initialize/reset it
+        if static_back is None or static_back.shape != gray.shape:
+            track_history[track_id].at[last_idx, 'static_back'] = gray
             return False
 
-        diff_frame = cv2.absdiff(track_history[track_id]['static_back'], gray)
+        # Now both static_back and gray have the same shape
+        diff_frame = cv2.absdiff(static_back, gray)
         thresh_frame = cv2.threshold(diff_frame, 30, 255, cv2.THRESH_BINARY)[1]
         thresh_frame = cv2.dilate(thresh_frame, None, iterations=2)
 
         contours, _ = cv2.findContours(thresh_frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for contour in contours:
             if cv2.contourArea(contour) > motion_threshold:
+                print("mothafoka has no motion")
                 return True
 
-        track_history[track_id]['static_back'] = gray
+        # Update the static_back image with the new gray frame
+        track_history[track_id].at[last_idx, 'static_back'] = gray
+        print("motion has been detected")
         return False
 
     if use_distance_motion:
-        #todo -> implementation
+        # TODO: implement distance-based motion detection
         return False
-
 
 
 def check_if_person_is_on_the_ground(cls_name) -> bool:
@@ -265,10 +272,11 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
     alert = False
     static_back = None
     trigger_classifier = False
+    no_motion = False
+    on_the_ground = False
 
     if track_id not in track_history:
-        no_motion = False
-        on_the_ground = False
+
         if use_static_back_motion:
             new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, no_motion, on_the_ground, False, False, None]], columns=columns)
 
@@ -278,9 +286,10 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
         track_history[track_id] = new_record
 
     else:
-        no_motion = check_for_motion(frame, xmin, ymin, h, w, track_history, track_id)
-        print(cls_name)
         on_the_ground = check_if_person_is_on_the_ground(cls_name)
+
+        if on_the_ground:
+            no_motion = check_for_motion(frame, xmin, ymin, h, w, track_history, track_id)
 
         if use_static_back_motion:
             static_back = track_history[track_id].iloc[-1]['static_back']
@@ -343,6 +352,8 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 ## Algorithm steps:
 ##       - Detection
 ##       - Alert
+
+results_df = pd.DataFrame(columns=['video','truth','found','correct','false','missed'])
 
 tot_vids=0
 for vid in videos_2b_tested:
@@ -520,6 +531,39 @@ for vid in videos_2b_tested:
 
     video_cap.release()
     cv2.destroyAllWindows()
+
+
+    alerts_correct = []
+    alerts_false = []
+    alerts_missed = []
+
+    for ground_truth_frame in ground_truth:
+        found = False
+        for alerted_frame in alerts_generated:
+            if (ground_truth_frame - alerted_frame) <= fps_orig * acc_in_sec_of_alert:
+                found = True
+                alerts_correct.append(alerted_frame)
+
+            if not found:
+                alerts_missed.append(alerted_frame)
+
+    for alerted_frame in alerts_generated:
+        was_correct = False
+        for ground_truth_frame in ground_truth:
+            if (ground_truth_frame - alerted_frame) <= fps_orig * acc_in_sec_of_alert:
+                was_correct = True
+
+        if not was_correct:
+            alerts_missed.append(alerted_frame)
+
+    new_eval_row = {'video': vid['file'], 'truth': vid['ground_truth'], 'found':alerts_generated, 'correct': alerts_correct, 'false':alerts_false, 'missed': alerts_missed}
+    new_eval_row_df = pd.DataFrame.from_records([new_eval_row])
+    results_df = pd.concat([results_df, new_eval_row_df], ignore_index=True)
+
+
+results_df.to_excel('results.xlsx', index=False)
+
+
 
 
 
