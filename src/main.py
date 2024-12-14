@@ -42,7 +42,15 @@ store_tracked_detections_in_file=False
 read_detections_from_file=False
 detect_alerts=True
 
-use_minio = True
+#############################################################
+## load videos configuration
+
+use_minio = False
+use_local = True
+
+download_from_minio_and_store_in_file = False
+
+assert not (use_minio and use_local and download_from_minio_and_store_in_file), "Only one variable can be True"
 
 ##############################################################
 ## algorithm parameter configuration
@@ -87,7 +95,7 @@ assert not (use_static_back_motion and use_distance_motion), "both variables can
 #########################################################
 
 
-if use_minio:
+if use_minio or download_from_minio_and_store_in_file:
     from minio import Minio
     from minio.error import S3Error
     from utils.minio_utils import MinioClient
@@ -167,9 +175,9 @@ emergency_detected=RED
 ## helper functions
 
 if use_static_back_motion:
-    columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'no_motion', 'on_the_ground', 'trigger_classifier', 'alert', 'static_back']
+    columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'motion', 'on_the_ground', 'trigger_classifier', 'alert', 'static_back']
 if use_distance_motion:
-    columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'no_motion', 'on_the_ground', 'trigger_classifier', 'alert']
+    columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'motion', 'on_the_ground', 'trigger_classifier', 'alert']
 
 
 def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id) -> bool:
@@ -186,25 +194,24 @@ def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id) -> bool:
         last_idx = track_history[track_id].index[-1]
         static_back = track_history[track_id].loc[last_idx, 'static_back']
 
-        # If static_back is None or shape changed, initialize/reset it
         if static_back is None or static_back.shape != gray.shape:
-            track_history[track_id].at[last_idx, 'static_back'] = gray
-            return False
+            static_back = gray.copy()
+            track_history[track_id].at[last_idx, 'static_back'] = static_back
+            return True
 
         # Now both static_back and gray have the same shape
         diff_frame = cv2.absdiff(static_back, gray)
-        thresh_frame = cv2.threshold(diff_frame, 30, 255, cv2.THRESH_BINARY)[1]
+        thresh_frame = cv2.threshold(diff_frame, 10, 255, cv2.THRESH_BINARY)[1]
         thresh_frame = cv2.dilate(thresh_frame, None, iterations=2)
 
         contours, _ = cv2.findContours(thresh_frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for contour in contours:
             if cv2.contourArea(contour) > motion_threshold:
-                print("mothafoka has no motion")
+                print("mothafoka has motion")
                 return True
 
         # Update the static_back image with the new gray frame
         track_history[track_id].at[last_idx, 'static_back'] = gray
-        print("motion has been detected")
         return False
 
     if use_distance_motion:
@@ -239,6 +246,7 @@ def check_for_alert_in_history(track_history, number_max_frames) -> bool:
 def check_if_last_frame_was_alert(track_history) -> bool:
     last_alert = track_history.iloc[-1]
     is_alert = last_alert['alert']
+    print('is_alert:', alert)
 
     return bool(is_alert)
 
@@ -272,16 +280,16 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
     alert = False
     static_back = None
     trigger_classifier = False
-    no_motion = False
+    motion = False
     on_the_ground = False
 
     if track_id not in track_history:
 
         if use_static_back_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, no_motion, on_the_ground, False, False, None]], columns=columns)
+            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, False, False, None]], columns=columns)
 
         if use_distance_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, no_motion,on_the_ground, False, False]], columns=columns)
+            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion,on_the_ground, False, False]], columns=columns)
 
         track_history[track_id] = new_record
 
@@ -289,12 +297,13 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
         on_the_ground = check_if_person_is_on_the_ground(cls_name)
 
         if on_the_ground:
-            no_motion = check_for_motion(frame, xmin, ymin, h, w, track_history, track_id)
+            motion = check_for_motion(frame, xmin_bbox, ymin_bbox, h_bbox, w_bbox, track_history, track_id)
+            print("no motion:", no_motion)
 
         if use_static_back_motion:
             static_back = track_history[track_id].iloc[-1]['static_back']
 
-        if on_the_ground and no_motion:
+        if on_the_ground and not motion:
             print('mathafoka might be dede #skillIssue')
             trigger_classifier = True
 
@@ -303,7 +312,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
         alr_alerted = check_for_alert_in_history(track_history[track_id], number_max_frames=len(track_history[track_id]))
         if double_check_through_img_classifier and not alr_alerted:
             if trigger_classifier:
-                with torch.no_grad:
+                with torch.no_grad():
                     cropped_frame = crop_bbox(xmin, ymin, w, h, frame)
                     crop_tensor = cv2.resize(cropped_frame, (128, 128))
                     crop_tensor = torch.tensor(crop_tensor, dtype=torch.float32).permute(2, 0, 1)
@@ -312,9 +321,9 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                     score = prediction.item()
 
                     if score > prob_thres_img_classifier:
-                        pred_label_index = 0
-                    if score < prob_thres_img_classifier:
                         pred_label_index = 1
+                    if score < prob_thres_img_classifier:
+                        pred_label_index = 0
 
                     class_names = ("emergency", "no emergency")
                     predicted_label = class_names[pred_label_index]
@@ -332,16 +341,16 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
         new_record = None
         if use_distance_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, no_motion, on_the_ground, trigger_classifier, alert, static_back]], columns=columns)
+            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, trigger_classifier, alert, static_back]], columns=columns)
 
         if use_distance_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, no_motion, on_the_ground, trigger_classifier, alert]], columns=columns)
+            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, trigger_classifier, alert]], columns=columns)
 
         track_history[track_id] = pd.concat([track_history[track_id], new_record], ignore_index=True)
 
         if len(track_history[track_id]) > max_history_len:
             track_history[track_id] = track_history[track_id].drop(track_history[track_id]['frame_nb'].idxmin())
-    return track_history,no_motion,on_the_ground,alert
+    return track_history,motion,on_the_ground,alert
 
 
 
@@ -362,7 +371,7 @@ for vid in videos_2b_tested:
 
     ground_truth = vid['ground_truth']
 
-    if use_minio:
+    if use_minio or download_from_minio_and_store_in_file:
         minioClient = Minio(
             minio_url,
             minio_access_key,
@@ -372,14 +381,34 @@ for vid in videos_2b_tested:
 
         object_name = "movies/"+vid['sub_dir']+"/"+vid['file']+"."+vid['ext']
 
-        temp_file = tempfile.NamedTemporaryFile(delete=False)
-        try:
-            data = minioClient.get_object(minio_bucket_name+'-'+vid['owner_group_name'], object_name)
-            temp_file.write(data.read())
-            temp_file.close()
-            video_cap = cv2.VideoCapture(temp_file.name)
-        except S3Error as exc:
-            print("Error occured:", exc)
+        if download_from_minio:
+            local_file_path = Path("local_movies") / vid['sub_dir'] / f"{vid['file']}.{vid['ext']}"
+            local_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            try:
+                data = minioClient.get_object(minio_bucket_name + '-' + vid['owner_group_name'], object_name)
+                with local_file_path.open('wb') as file:
+                    file.write(data.read())
+                print(f"File downloaded successfully to {local_file_path}")
+
+                video_cap = cv2.VideoCapture(str(local_file_path))
+
+            except S3Error as exc:
+                print("Error occurred:", exc)
+
+        if use_minio:
+            temp_file = tempfile.NamedTemporaryFile(delete=False)
+            try:
+                data = minioClient.get_object(minio_bucket_name+'-'+vid['owner_group_name'], object_name)
+                temp_file.write(data.read())
+                temp_file.close()
+                video_cap = cv2.VideoCapture(temp_file.name)
+            except S3Error as exc:
+                print("Error occured:", exc)
+
+    if use_local:
+        local_file_path = Path("local_movies") / vid['sub_dir'] / f"{vid['file']}.{vid['ext']}"
+        video_cap = cv2.VideoCapture(str(local_file_path))
 
 
     tot_frames = int(video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -492,7 +521,7 @@ for vid in videos_2b_tested:
                         cropped_frame = frame[ymin:ymax, xmin:xmax]
 
                         new_track_history, no_motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area, cls_name)
-
+                        print("new_track_history", new_track_history[track_id])
                     if double_check_through_pose_classifier:
                         if use_yolo_pose:
                             #todo -> define which keypoints plez and implement this
@@ -502,6 +531,7 @@ for vid in videos_2b_tested:
                             print('mediapipe needs to be implemented')
 
                     if check_if_last_frame_was_alert(new_track_history[track_id]):
+                        print("alert in last frame woop woop")
                         bbox_color = RED
                         if emergency_detected == False:
                             emergency_detected = True
@@ -562,11 +592,3 @@ for vid in videos_2b_tested:
 
 
 results_df.to_excel('results.xlsx', index=False)
-
-
-
-
-
-
-
-#todo -> create the evaluation table
