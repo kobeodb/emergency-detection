@@ -381,7 +381,7 @@ for vid in videos_2b_tested:
 
         object_name = "movies/"+vid['sub_dir']+"/"+vid['file']+"."+vid['ext']
 
-        if download_from_minio:
+        if download_from_minio_and_store_in_file:
             local_file_path = Path("local_movies") / vid['sub_dir'] / f"{vid['file']}.{vid['ext']}"
             local_file_path.parent.mkdir(parents=True, exist_ok=True)
 
