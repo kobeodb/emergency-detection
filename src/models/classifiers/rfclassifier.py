@@ -16,13 +16,16 @@ mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(min_detection_confidence=0.5,
                     min_tracking_confidence=0.5)
 
+LANDMARKS = [0, 11, 12, 23, 24, 25, 26]
+
 
 def extract_kps(image):
     result = pose.process(image)
-    kps = np.zeros(33 * 3)
+    kps = np.zeros(len(LANDMARKS) * 3)
 
     if result.pose_landmarks:
-        for i, landmark in enumerate(result.pose_landmarks.landmark):  # ignore
+        for i, landmark_index in enumerate(LANDMARKS):
+            landmark = result.pose_landmarks.landmark[landmark_index]
             kps[i * 3:i * 3 + 3] = [landmark.x, landmark.y, landmark.z]
 
     return kps
@@ -32,16 +35,17 @@ def augment_image(image):
     if np.random.rand() > 0.5:
         image = cv2.flip(image, 1)
 
-    angle = np.random.uniform(-30, 30)
-    h, w = image.shape[:2]
-    center = (w // 2, h // 2)
-    rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
-    image = cv2.warpAffine(image, rotation_matrix, (w, h))
+    hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV).astype(np.float32)
 
-    factor = np.random.uniform(0.7, 1.3)
-    image = cv2.convertScaleAbs(image, alpha=factor, beta=0)
+    brightness_factor = np.random.uniform(0.7, 1.3)
+    hsv_image[:, :, 2] = np.clip(hsv_image[:, :, 2] * brightness_factor, 0, 255)
 
-    return image
+    saturation_factor = np.random.uniform(0.7, 1.3)
+    hsv_image[:, :, 1] = np.clip(hsv_image[:, :, 1] * saturation_factor, 0, 255)
+
+    augmented_image = cv2.cvtColor(hsv_image.astype(np.uint8), cv2.COLOR_HSV2BGR)
+
+    return augmented_image
 
 
 def load_data(fd: str, nfd: str, augment=False) -> Tuple[np.array, np.array]:
@@ -97,7 +101,7 @@ if __name__ == '__main__':
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
 
     study = optuna.create_study(direction='maximize')
-    study.optimize(objective, n_trials=100)
+    study.optimize(objective, n_trials=50)
 
     best_params = study.best_params
 
@@ -111,4 +115,4 @@ if __name__ == '__main__':
     accuracy = accuracy_score(y_val, y_pred)
     print(f"Final model accuracy: {accuracy}")
 
-    joblib.dump(best_rf_model, '../weights/best_rf_model_M.pkl')
+    joblib.dump(best_rf_model, '../../data/weights/best_rf_model_M.pkl')
