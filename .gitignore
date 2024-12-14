@@ -17,3 +17,5 @@ src/models/fall_detector/src/*
 
 /src/data/movies_2_use/__pycache__/*
 /src/utils/__pycache__/*
+
+src/local_movies/*

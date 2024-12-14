@@ -246,7 +246,7 @@ def check_for_alert_in_history(track_history, number_max_frames) -> bool:
 def check_if_last_frame_was_alert(track_history) -> bool:
     last_alert = track_history.iloc[-1]
     is_alert = last_alert['alert']
-    print('is_alert:', alert)
+    # print('is_alert:', alert)
 
     return bool(is_alert)
 
@@ -298,7 +298,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
         if on_the_ground:
             motion = check_for_motion(frame, xmin_bbox, ymin_bbox, h_bbox, w_bbox, track_history, track_id)
-            print("no motion:", no_motion)
+            print("motion:", motion)
 
         if use_static_back_motion:
             static_back = track_history[track_id].iloc[-1]['static_back']
@@ -340,10 +340,10 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
             alert = True
 
         new_record = None
-        if use_distance_motion:
+        if use_static_back_motion:
             new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, trigger_classifier, alert, static_back]], columns=columns)
 
-        if use_distance_motion:
+        elif use_distance_motion:
             new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, trigger_classifier, alert]], columns=columns)
 
         track_history[track_id] = pd.concat([track_history[track_id], new_record], ignore_index=True)
@@ -367,7 +367,7 @@ results_df = pd.DataFrame(columns=['video','truth','found','correct','false','mi
 tot_vids=0
 for vid in videos_2b_tested:
     tot_vids += 1
-    emergency_detected = False
+    emergency = False
 
     ground_truth = vid['ground_truth']
 
@@ -406,7 +406,7 @@ for vid in videos_2b_tested:
             except S3Error as exc:
                 print("Error occured:", exc)
 
-    if use_local:
+    elif use_local:
         local_file_path = Path("local_movies") / vid['sub_dir'] / f"{vid['file']}.{vid['ext']}"
         video_cap = cv2.VideoCapture(str(local_file_path))
 
@@ -521,7 +521,7 @@ for vid in videos_2b_tested:
                         cropped_frame = frame[ymin:ymax, xmin:xmax]
 
                         new_track_history, no_motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area, cls_name)
-                        print("new_track_history", new_track_history[track_id])
+
                     if double_check_through_pose_classifier:
                         if use_yolo_pose:
                             #todo -> define which keypoints plez and implement this
@@ -533,10 +533,11 @@ for vid in videos_2b_tested:
                     if check_if_last_frame_was_alert(new_track_history[track_id]):
                         print("alert in last frame woop woop")
                         bbox_color = RED
-                        if emergency_detected == False:
-                            emergency_detected = True
+                        print("emergency state 1:", emergency)
+                        if emergency == False:
+                            emergency = True
                             alerts_generated.append(frame_count)
-                            print(frame_count)
+                            print("frame count of emergency: ",frame_count)
                     else:
                         if on_the_ground:
                             bbox_color = YELLOW
