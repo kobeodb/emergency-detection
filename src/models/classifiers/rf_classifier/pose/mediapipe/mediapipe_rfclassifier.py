@@ -94,8 +94,8 @@ def objective(trial):
 
 
 if __name__ == '__main__':
-    fall_dir = '../../data/classification_data/fall'
-    not_fall_dir = '../../data/classification_data/not-fall'
+    fall_dir = '../../../../../data/classification_data/fall'
+    not_fall_dir = '../../../../../data/classification_data/not-fall'
 
     X, y = load_data(fall_dir, not_fall_dir, augment=True)
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -115,4 +115,4 @@ if __name__ == '__main__':
     accuracy = accuracy_score(y_val, y_pred)
     print(f"Final model accuracy: {accuracy}")
 
-    joblib.dump(best_rf_model, '../../data/weights/best_rf_model_M.pkl')
+    joblib.dump(best_rf_model, '../../../../../data/weights/media_pipe_rfclassifier/best_rf_model_M.pkl')

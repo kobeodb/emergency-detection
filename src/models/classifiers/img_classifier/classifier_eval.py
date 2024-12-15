@@ -36,7 +36,7 @@ def predict(image_path, model, config, device):
 
 if __name__ == "__main__":
     # Load configuration
-    config_path = '../../../config/config.yaml'
+    config_path = '../../../../config/config.yaml'
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
 
