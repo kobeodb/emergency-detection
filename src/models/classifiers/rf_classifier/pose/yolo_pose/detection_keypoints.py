@@ -26,7 +26,7 @@ class GetKeypoint(BaseModel):
 
 
 class DetectKeypoint:
-    def __init__(self, yolov11_model='yolov11n-pose'):
+    def __init__(self, yolov11_model='yolo11n-pose'):
         self.yolov11_model = yolov11_model
         self.get_keypoint = GetKeypoint()
         self.__load_model()
@@ -35,41 +35,18 @@ class DetectKeypoint:
         self.model = ultralytics.YOLO(model=self.yolov11_model)
 
     def extract_keypoint(self, keypoint: np.ndarray) -> list:
-        # nose
-        nose_x, nose_y = keypoint[self.get_keypoint.NOSE]
-        # eye
-        left_eye_x, left_eye_y = keypoint[self.get_keypoint.LEFT_EYE]
-        right_eye_x, right_eye_y = keypoint[self.get_keypoint.RIGHT_EYE]
-        # ear
-        left_ear_x, left_ear_y = keypoint[self.get_keypoint.LEFT_EAR]
-        right_ear_x, right_ear_y = keypoint[self.get_keypoint.RIGHT_EAR]
-        # shoulder
-        left_shoulder_x, left_shoulder_y = keypoint[self.get_keypoint.LEFT_SHOULDER]
-        right_shoulder_x, right_shoulder_y = keypoint[self.get_keypoint.RIGHT_SHOULDER]
-        # elbow
-        left_elbow_x, left_elbow_y = keypoint[self.get_keypoint.LEFT_ELBOW]
-        right_elbow_x, right_elbow_y = keypoint[self.get_keypoint.RIGHT_ELBOW]
-        # wrist
-        left_wrist_x, left_wrist_y = keypoint[self.get_keypoint.LEFT_WRIST]
-        right_wrist_x, right_wrist_y = keypoint[self.get_keypoint.RIGHT_WRIST]
-        # hip
-        left_hip_x, left_hip_y = keypoint[self.get_keypoint.LEFT_HIP]
-        right_hip_x, right_hip_y = keypoint[self.get_keypoint.RIGHT_HIP]
-        # knee
-        left_knee_x, left_knee_y = keypoint[self.get_keypoint.LEFT_KNEE]
-        right_knee_x, right_knee_y = keypoint[self.get_keypoint.RIGHT_KNEE]
-        # ankle
-        left_ankle_x, left_ankle_y = keypoint[self.get_keypoint.LEFT_ANKLE]
-        right_ankle_x, right_ankle_y = keypoint[self.get_keypoint.RIGHT_ANKLE]
+        extracted_keypoints = []
 
-        return [
-            nose_x, nose_y, left_eye_x, left_eye_y, right_eye_x, right_eye_y,
-            left_ear_x, left_ear_y, right_ear_x, right_ear_y, left_shoulder_x, left_shoulder_y,
-            right_shoulder_x, right_shoulder_y, left_elbow_x, left_elbow_y, right_elbow_x, right_elbow_y,
-            left_wrist_x, left_wrist_y, right_wrist_x, right_wrist_y, left_hip_x, left_hip_y,
-            right_hip_x, right_hip_y, left_knee_x, left_knee_y, right_knee_x, right_knee_y,
-            left_ankle_x, left_ankle_y, right_ankle_x, right_ankle_y
-        ]
+        for key in self.get_keypoint.model_fields.values():
+            try:
+                x, y = keypoint[key.default]
+                extracted_keypoints.extend([x, y])
+            except IndexError:
+
+                print(f"Keypoint is missing. Using default values (0, 0).")
+                extracted_keypoints.extend([0, 0])
+
+        return extracted_keypoints
 
     def get_xy_keypoint(self, results) -> list:
         result_keypoint = results.keypoints.xyn.cpu().numpy()[0]
