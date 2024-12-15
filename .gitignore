@@ -19,3 +19,4 @@ src/models/fall_detector/src/*
 /src/utils/__pycache__/*
 
 src/local_movies/*
+src/data/classification_data/*
