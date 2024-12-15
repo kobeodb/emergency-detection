@@ -25,7 +25,7 @@ class NeuralNet(nn.Module):
 class KeypointClassification:
     def __init__(self, path_model):
         self.path_model = path_model
-        self.classes = [0, 1]
+        self.classes = ['0', '1']
         self.device = torch.device("mps" if torch.mps.is_available() else "cpu")
         self.load_model()
 

@@ -19,6 +19,7 @@ from data.movies_2_use.student_files import *
 videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
 # videos_2b_tested = student_positive_2b_tested
 # videos_2b_tested = my_videos_negative_2b_tested
+# videos_2b_tested = my_videos_positive_2b_tested
 
 device = 'mps'
 # device = 'cuda'
@@ -85,8 +86,8 @@ aspr_motion_sensitivity           = 0.05
 ## pose estimator configuration ##
 ########################################################
 
-use_mediapipe_pose = True
-use_yolo_pose      = False
+use_mediapipe_pose = False
+use_yolo_pose      = True
 assert not (use_yolo_pose and use_mediapipe_pose), "both variable cannot be true at the same time"
 
 #######################################################
@@ -137,14 +138,14 @@ current_dir = Path.cwd()
 
 detections_dir = Path(current_dir / "data" / "detections")
 video_file_dir = Path(current_dir / "data" / "movies_2_use")
-yolo_model_dir = Path(current_dir / "data" / "weights")
+model_weight_dir = Path(current_dir / "data" / "weights")
 classifier_dir = Path(current_dir / "models" / "classifiers")
 
 if use_custom_fall_detection:
     from utils.all_yolo_classes import yolo_class_dict
 
     yolo_detect_model = "yolo11n.pt"
-    yolo_detect_model_path = Path(yolo_model_dir / "yolo_detection" /yolo_detect_model)
+    yolo_detect_model_path = Path(model_weight_dir / "yolo_detection" / yolo_detect_model)
 
     yolo_model = YOLO(yolo_detect_model_path)
 
@@ -155,7 +156,7 @@ if use_ft_yolo:
     # yolo_detect_model="best_2.pt"
     # yolo_detect_model="best_3.pt"
     # yolo_detect_model="best_4.pt"
-    yolo_detect_model_path = Path(yolo_model_dir / "yolo_detection" /yolo_detect_model)
+    yolo_detect_model_path = Path(model_weight_dir / "yolo_detection" / yolo_detect_model)
 
     yolo_model = YOLO(yolo_detect_model_path)
 
@@ -179,7 +180,7 @@ if double_check_through_img_classifier:
 
     classifier_input_size = 128
 
-if double_check_through_pose_classifier:
+if double_check_through_pose_classifier and use_mediapipe_pose:
     import mediapipe as mp
     import joblib
 
@@ -191,6 +192,26 @@ if double_check_through_pose_classifier:
     rf_model_path = Path(current_dir / 'data' / 'weights' / 'media_pipe_rfclassifier' / rf_model_name)
 
     rf_model = joblib.load(rf_model_path)
+
+if double_check_through_pose_classifier and use_yolo_pose:
+    import torch
+    import torch.nn as nn
+    from models.classifiers.rf_classifier.pose.yolo_pose.classification_keypoint import NeuralNet
+    from models.classifiers.rf_classifier.pose.yolo_pose.classification_keypoint import KeypointClassification
+    from models.classifiers.rf_classifier.pose.yolo_pose.detection_keypoints import DetectKeypoint
+
+    yolo_pose_nn_name = 'pose_classification.pt'
+
+    yolo_pose_nn_path = Path(model_weight_dir / "yolo_pose_nnClassifier" / yolo_pose_nn_name)
+
+    yolo_pose_keypoint_detection = DetectKeypoint()
+    yolo_pose_nn_classification = KeypointClassification(yolo_pose_nn_path)
+
+    # yolo_pose_model = NeuralNet(24, 256, 2)
+    # yolo_pose_model.load_state_dict(torch.load(yolo_pose_nn_path, map_location=device))
+
+
+
 
 
 #colors
@@ -450,7 +471,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                     print(f'Classifier predicted: {predicted_label} with probability: {score} on frame {frame_nb}')
 
 
-        if double_check_through_pose_classifier and not alr_alerted:
+        if double_check_through_pose_classifier and use_mediapipe_pose and not alr_alerted:
             if trigger_classifier:
                 cropped_frame_rgb = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
                 cropped_frame_rgb = cv2.resize(cropped_frame_rgb, (256, 256))
@@ -481,6 +502,32 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                 if predicted_label == 'no emergency':
                     trigger_classifier = False
                 print(f'Classifier predicted: {predicted_label} with probability: {prediction} on frame {frame_nb}')
+
+
+        if double_check_through_pose_classifier and use_yolo_pose and not alr_alerted:
+            if trigger_classifier:
+                results = yolo_pose_keypoint_detection(cropped_frame)
+
+                if not results or len(results) == 0:
+                    print(f"No keypoints detected for track_id: {track_id}, frame: {frame_nb}")
+                    trigger_classifier = False
+
+                results_keypoint = yolo_pose_keypoint_detection.get_xy_keypoint(results)
+
+                if results_keypoint is None:
+                    print(f"No keypoints detected for frame {frame_count}, skipping...")
+                    trigger_classifier = False
+
+                input_classification = results_keypoint[10:]
+                prediction = yolo_pose_nn_classification(input_classification)
+
+                class_names = ("emergency", "no emergency")
+                predicted_label = class_names[int(prediction)]
+
+                if predicted_label == 'no emergency':
+                    trigger_classifier = False
+
+                print(f'Classifier predicted: {predicted_label} on frame {frame_nb}')
 
 
         if trigger_classifier:
@@ -669,22 +716,13 @@ for vid in videos_2b_tested:
 
                     cropped_frame = frame[ymin:ymax, xmin:xmax]
 
-                    # if use_yolo_pose:
-                    #     # todo -> implement this for custom fall detection logic
-                    #     print('implement this for custom fall detection logic')
-                    # if use_mediapipe_pose:
-                    #     # todo -> implement this for custom fall detection logic
-                    #     print('implement this for custom fall detection logic')
-
                     new_track_history, no_motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area, aspr,cls_name, max_frames_fall_motion_tracking, max_frames_motion_tracking_double_check, process_frames_reduction_factor)
 
                     if check_if_last_frame_was_alert(new_track_history[track_id]):
-                        print("alert in last frame woop woop")
+
                         bbox_color = RED
-                        print("emergency state 1:", emergency)
                         if emergency == False:
                             emergency = True
-                            print("emergency:", emergency)
                             alerts_generated.append(frame_count)
                             print("frame count of emergency: ",frame_count)
                     else:
@@ -708,10 +746,8 @@ for vid in videos_2b_tested:
                     if cv2.waitKey(1) == ord("q"):
                         break
 
-
     video_cap.release()
     cv2.destroyAllWindows()
-
 
     alerts_correct = []
     alerts_false = []
