@@ -2,14 +2,11 @@ import time
 from collections import defaultdict
 
 import cv2
-import numpy as np
 import torch
 import yaml
-from jinja2.nodes import Continue
-from rich.progress import track
 from ultralytics import YOLO
 
-from src.models.classifiers.classifier import CNN
+from src.models.classifiers.img_classifier.classifier import CNN
 
 class EmergencyDetector:
     def __init__(self, config_path, model_path):
@@ -231,5 +228,5 @@ class EmergencyDetector:
 
 
 if __name__ == "__main__":
-    system = EmergencyDetector('../../config/config.yaml', '../models/classifiers/best_model.pth')
+    system = EmergencyDetector('../../config/config.yaml', '../models/classifiers/img_classifier/best_model.pth')
     system.process_video("../data/pipeline_eval_data/test_videos/simulation_chantier.mp4")

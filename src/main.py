@@ -2,8 +2,6 @@
 project: EyesForResque
 Author: BotBrigade
 """
-import time
-from datetime import datetime
 
 import cv2
 import pandas as pd
@@ -14,18 +12,19 @@ import numpy as np
 
 from ultralytics import YOLO
 
-from data.movies_2_use.student_files import *
 from data.movies_2_use.my_files import *
+from data.movies_2_use.student_files import *
 
-# videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
+
+videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
 # videos_2b_tested = student_positive_2b_tested
-videos_2b_tested = my_videos_negative_2b_tested
+# videos_2b_tested = my_videos_negative_2b_tested
 
 device = 'mps'
 # device = 'cuda'
 # device = 'cpu'
 
-visualize_bbox = True
+visualize_bbox = False
 
 ############################################################
 
@@ -94,8 +93,8 @@ assert not (use_yolo_pose and use_mediapipe_pose), "both variable cannot be true
 ## Classifier configuration ##
 #######################################################
 
-double_check_through_img_classifier     = True
-double_check_through_pose_classifier    = False
+double_check_through_img_classifier     = False
+double_check_through_pose_classifier    = True
 assert not (double_check_through_img_classifier and double_check_through_pose_classifier), "both variables cannot be True at the same time"
 
 #######################################################
@@ -122,7 +121,6 @@ assert not (use_static_back_motion and use_distance_motion and use_std_dev_motio
 if use_minio or download_from_minio_and_store_in_file:
     from minio import Minio
     from minio.error import S3Error
-    from utils.minio_utils import MinioClient
     import tempfile
 
     load_dotenv()
@@ -146,7 +144,7 @@ if use_custom_fall_detection:
     from utils.all_yolo_classes import yolo_class_dict
 
     yolo_detect_model = "yolo11n.pt"
-    yolo_detect_model_path = Path(yolo_model_dir / yolo_detect_model)
+    yolo_detect_model_path = Path(yolo_model_dir / "yolo_detection" /yolo_detect_model)
 
     yolo_model = YOLO(yolo_detect_model_path)
 
@@ -157,7 +155,7 @@ if use_ft_yolo:
     # yolo_detect_model="best_2.pt"
     # yolo_detect_model="best_3.pt"
     # yolo_detect_model="best_4.pt"
-    yolo_detect_model_path = Path(yolo_model_dir / yolo_detect_model)
+    yolo_detect_model_path = Path(yolo_model_dir / "yolo_detection" /yolo_detect_model)
 
     yolo_model = YOLO(yolo_detect_model_path)
 
@@ -166,14 +164,16 @@ if use_ft_yolo:
 if double_check_through_img_classifier:
     import torch
     import yaml
-    from models.classifiers.classifier import CNN
+    from models.classifiers.img_classifier.classifier import CNN
 
     config_path = '../config/config.yaml'
     with open(config_path) as f:
         config = yaml.safe_load(f)
 
+    img_classifier_path = Path(classifier_dir / "img_classifier")
+
     img_classifier  = CNN(config).to(device)
-    checkpoint = torch.load(Path(classifier_dir / 'best_model.pth'), map_location=device)
+    checkpoint = torch.load(Path(img_classifier_path / 'best_model.pth'), map_location=device)
     img_classifier.load_state_dict(checkpoint['classifier_state_dict'])
     img_classifier.eval()
 
@@ -188,7 +188,7 @@ if double_check_through_pose_classifier:
                         min_tracking_confidence=0.5)
 
     rf_model_name = 'best_rf_model_M.pkl'
-    rf_model_path = Path(current_dir / 'data' / 'weights' / 'rf_model_name')
+    rf_model_path = Path(current_dir / 'data' / 'weights' / 'media_pipe_rfclassifier' / rf_model_name)
 
     rf_model = joblib.load(rf_model_path)
 
@@ -408,14 +408,12 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
         if on_the_ground:
             motion = check_for_motion(frame, xmin_bbox, ymin_bbox, h_bbox, w_bbox, track_history, track_id, motion_sensitivity/process_frames_reduction_factor)
-            print("motion:", motion)
 
         last_record = track_history[track_id].iloc[-1]
         prev_count = last_record.get('no_motion_on_ground_count', 0)
 
         if on_the_ground and not motion:
             no_motion_on_ground_count = prev_count + 1
-            print(f"no_motion_on_ground_count: {no_motion_on_ground_count}")
         else:
             no_motion_on_ground_count = 0
 
@@ -457,11 +455,15 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                 cropped_frame_rgb = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
                 cropped_frame_rgb = cv2.resize(cropped_frame_rgb, (256, 256))
 
+                landmarks = [0, 11, 12, 23, 24, 25, 26]
+
                 result = pose.process(cropped_frame_rgb)
-                kps = np.zeros(33 * 3)
+
+                kps = np.zeros(len(landmarks) * 3)
 
                 if result.pose_landmarks:
-                    for i, landmark in enumerate(result.pose_landmarks.landmark):
+                    for i, landmark in enumerate(landmarks):
+                        landmark = result.pose_landmarks.landmark[landmark]
                         kps[i * 3:i * 3 + 3] = [landmark.x, landmark.y, landmark.z]
 
                 pose_keypoints = kps.reshape(1, -1)
@@ -478,7 +480,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
                 if predicted_label == 'no emergency':
                     trigger_classifier = False
-                print(f'Classifier predicted: {predicted_label} with probability: {score} on frame {frame_nb}')
+                print(f'Classifier predicted: {predicted_label} with probability: {prediction} on frame {frame_nb}')
 
 
         if trigger_classifier:
@@ -682,6 +684,7 @@ for vid in videos_2b_tested:
                         print("emergency state 1:", emergency)
                         if emergency == False:
                             emergency = True
+                            print("emergency:", emergency)
                             alerts_generated.append(frame_count)
                             print("frame count of emergency: ",frame_count)
                     else:
@@ -717,25 +720,50 @@ for vid in videos_2b_tested:
     for ground_truth_frame in ground_truth:
         found = False
         for alerted_frame in alerts_generated:
-            if (ground_truth_frame - alerted_frame) <= fps_orig * acc_in_sec_of_alert:
+            print(f"alerted frames: {alerted_frame}")
+            if (ground_truth_frame+round(secs_motion_tracking_double_check * fps_orig) - alerted_frame) <= fps_orig * acc_in_sec_of_alert:
                 found = True
-                alerts_correct.append(alerted_frame)
 
-            if not found:
-                alerts_missed.append(alerted_frame)
+        if found:
+            alerts_correct.append(ground_truth_frame)
+
+        else:
+             alerts_missed.append(ground_truth_frame)
 
     for alerted_frame in alerts_generated:
         was_correct = False
         for ground_truth_frame in ground_truth:
-            if (ground_truth_frame - alerted_frame) <= fps_orig * acc_in_sec_of_alert:
+            if (ground_truth_frame+round(secs_motion_tracking_double_check * fps_orig) - alerted_frame) <= fps_orig * acc_in_sec_of_alert:
                 was_correct = True
 
         if not was_correct:
-            alerts_missed.append(alerted_frame)
+            alerts_false.append(alerted_frame)
 
     new_eval_row = {'video': vid['file'], 'truth': vid['ground_truth'], 'found':alerts_generated, 'correct': alerts_correct, 'false':alerts_false, 'missed': alerts_missed}
     new_eval_row_df = pd.DataFrame.from_records([new_eval_row])
     results_df = pd.concat([results_df, new_eval_row_df], ignore_index=True)
+
+
+
+####################################################################
+## Calculate precision, recall and the false alert rate.
+####################################################################
+
+tot_truth = sum(len(row['truth']) for _, row in results_df.iterrows())
+tot_found = sum(len(row['found']) for _, row in results_df.iterrows())
+tot_correct = sum(len(row['correct']) for _, row in results_df.iterrows())
+tot_false = sum(len(row['false']) for _, row in results_df.iterrows())
+tot_missed = sum(len(row['missed']) for _, row in results_df.iterrows())
+
+metrics = {
+    'precision': round((tot_correct / (tot_correct + tot_false)) * 100, 2) if tot_found > 0 else 0,
+    'recall': round((tot_correct / (tot_correct + tot_missed)) * 100, 2) if tot_found > 0 else 0,
+    'false_alert_rate': round((tot_false / tot_found) * 100, 2) if tot_found > 0 else 0
+}
+
+print(metrics)
+
+
 
 
 results_df.to_excel('results.xlsx', index=False)

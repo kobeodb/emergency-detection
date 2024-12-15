@@ -10,7 +10,7 @@ venv
 /src/pipeline/__pycache__/*
 /src/models/classifiers/__pycache__/*
 /config/*
-src/models/classifiers/best_model.pth
+src/models/classifiers/img_classifier/best_model.pth
 src/data/pipeline_eval_data/test_videos/*
 src/models/fall_detector/runs/*
 src/models/fall_detector/src/*
@@ -20,3 +20,5 @@ src/models/fall_detector/src/*
 
 src/local_movies/*
 src/data/classification_data/*
+
+src/models/classifiers/rf_classifier/pose/yolo_pose/dataset/*
