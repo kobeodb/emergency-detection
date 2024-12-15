@@ -10,6 +10,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from pathlib import Path
 import os
+import numpy as np
 
 from ultralytics import YOLO
 
@@ -17,7 +18,8 @@ from data.movies_2_use.student_files import *
 from data.movies_2_use.my_files import *
 
 # videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
-videos_2b_tested = student_positive_2b_tested
+# videos_2b_tested = student_positive_2b_tested
+videos_2b_tested = my_videos_negative_2b_tested
 
 device = 'mps'
 # device = 'cuda'
@@ -63,6 +65,7 @@ secs_motion_tracking_double_check = 4       #seconds between the start of motion
 
 prob_thres_img_classifier         = 0.5     #if prob < threshold -> emergency
                                             #if prob > threshold -> fine
+prob_thres_pose_classifier        = 0.5     # =
 
 acc_in_sec_of_alert               = 5       #amount of seconds in where a frame alert is considered correct.
 
@@ -75,7 +78,7 @@ motion_std_multiplier_aspr        = 1.0     # standard deviation of bbox aspect 
                                             # if the area/aspect ratio is larger than what we'd normally see 99.7% of the time
                                             # -> its considered abnormal
 
-motion_sensitivity                = 1000
+motion_sensitivity                = 20
 area_motion_sensitivity           = 0.1
 aspr_motion_sensitivity           = 0.05
 
@@ -175,6 +178,19 @@ if double_check_through_img_classifier:
     img_classifier.eval()
 
     classifier_input_size = 128
+
+if double_check_through_pose_classifier:
+    import mediapipe as mp
+    import joblib
+
+    mp_pose = mp.solutions.pose
+    pose = mp_pose.Pose(min_detection_confidence=0.5,
+                        min_tracking_confidence=0.5)
+
+    rf_model_name = 'best_rf_model_M.pkl'
+    rf_model_path = Path(current_dir / 'data' / 'weights' / 'rf_model_name')
+
+    rf_model = joblib.load(rf_model_path)
 
 
 #colors
@@ -410,10 +426,13 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
 
         alr_alerted = check_for_alert_in_history(track_history[track_id], number_max_frames=len(track_history[track_id]))
+
+        cropped_frame = crop_bbox(xmin, ymin, w, h, frame)
+
         if double_check_through_img_classifier and not alr_alerted:
             if trigger_classifier:
                 with torch.no_grad():
-                    cropped_frame = crop_bbox(xmin, ymin, w, h, frame)
+
                     crop_tensor = cv2.resize(cropped_frame, (128, 128))
                     crop_tensor = torch.tensor(crop_tensor, dtype=torch.float32).permute(2, 0, 1)
                     crop_tensor = crop_tensor.unsqueeze(0).to(device)
@@ -432,9 +451,35 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                         trigger_classifier = False
                     print(f'Classifier predicted: {predicted_label} with probability: {score} on frame {frame_nb}')
 
+
         if double_check_through_pose_classifier and not alr_alerted:
-            #todo -> implement this shit
-            print("shitty shit needs to be implemented first BOMBACLAT")
+            if trigger_classifier:
+                cropped_frame_rgb = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
+                cropped_frame_rgb = cv2.resize(cropped_frame_rgb, (256, 256))
+
+                result = pose.process(cropped_frame_rgb)
+                kps = np.zeros(33 * 3)
+
+                if result.pose_landmarks:
+                    for i, landmark in enumerate(result.pose_landmarks.landmark):
+                        kps[i * 3:i * 3 + 3] = [landmark.x, landmark.y, landmark.z]
+
+                pose_keypoints = kps.reshape(1, -1)
+
+                prediction = rf_model.predict_proba(pose_keypoints)[0, 1]
+
+                if prediction > prob_thres_pose_classifier:
+                    pred_label_index = 1
+                if prediction < prob_thres_pose_classifier:
+                    pred_label_index = 0
+
+                class_names = ("emergency", "no emergency")
+                predicted_label = class_names[pred_label_index]
+
+                if predicted_label == 'no emergency':
+                    trigger_classifier = False
+                print(f'Classifier predicted: {predicted_label} with probability: {score} on frame {frame_nb}')
+
 
         if trigger_classifier:
             alert = True
@@ -620,19 +665,16 @@ for vid in videos_2b_tested:
 
                     aspr = abs(w / h)
 
-                    if double_check_through_img_classifier:
+                    cropped_frame = frame[ymin:ymax, xmin:xmax]
 
-                        cropped_frame = frame[ymin:ymax, xmin:xmax]
+                    # if use_yolo_pose:
+                    #     # todo -> implement this for custom fall detection logic
+                    #     print('implement this for custom fall detection logic')
+                    # if use_mediapipe_pose:
+                    #     # todo -> implement this for custom fall detection logic
+                    #     print('implement this for custom fall detection logic')
 
-                        new_track_history, no_motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area, aspr,cls_name, max_frames_fall_motion_tracking, max_frames_motion_tracking_double_check, process_frames_reduction_factor)
-
-                    if double_check_through_pose_classifier:
-                        if use_yolo_pose:
-                            #todo -> define which keypoints plez and implement this
-                            print('yolo pose needs to be implemented')
-                        if use_mediapipe_pose:
-                            #todo -> implement this
-                            print('mediapipe needs to be implemented')
+                    new_track_history, no_motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area, aspr,cls_name, max_frames_fall_motion_tracking, max_frames_motion_tracking_double_check, process_frames_reduction_factor)
 
                     if check_if_last_frame_was_alert(new_track_history[track_id]):
                         print("alert in last frame woop woop")

@@ -40,6 +40,9 @@ v19    = {'nickname':'v19','ground_truth':[]    ,'person going down': 0 ,'owner_
 
 # these are the latest greatest set of videos to be tested
 my_videos_2b_tested =[v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v1000,v1001,v1002,v1003,v1004,  v100,v101,v102,v103,v110,v111,v112,v113]
+my_videos_negative_2b_tested = [v101,v102,v1000,v100,v1001,v103,v113,v1002,v1003,v1004]
+my_videos_positive_2b_tested = [v103,v110,v111,v112,v113]
+
 
 # these are the videos on which my latest algo fails
 #my_videos_2b_tested =[v1004,v112,v102,v110]
