@@ -114,8 +114,8 @@ assert not (use_custom_fall_detection and use_ft_yolo),"only 1 variable can be t
 ## Motion tracking configuration ##
 #######################################################
 
-use_static_back_motion  = False
-use_distance_motion     = True
+use_static_back_motion  = True
+use_distance_motion     = False
 use_std_dev_motion      = False
 assert not (use_static_back_motion and use_distance_motion and use_std_dev_motion), "Only 1 variable can be True"
 
@@ -130,9 +130,9 @@ if use_minio or download_from_minio_and_store_in_file:
 
     load_dotenv()
 
-    minio_url = os.getenv('MINIO_URL')
-    minio_access_key = os.getenv('MINIO_USER')
-    minio_secret_key = os.getenv('MINIO_PASSWORD')
+    minio_url = os.getenv('MINIO_ENDPOINT')
+    minio_access_key = os.getenv('MINIO_ACCESS_KEY')
+    minio_secret_key = os.getenv('MINIO_SECRET_KEY')
     secure=False
 
     minio_bucket_name = os.getenv('MINIO_BUCKET_NAME')
@@ -255,26 +255,40 @@ def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id, factor):
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
-        last_idx = track_history[track_id].index[-1]
-        static_back = track_history[track_id].loc[last_idx, 'static_back']
+        if track_id not in track_history or track_history[track_id].empty:
+            print(f"[DEBUG] No track history found for track_id: {track_id}. Initializing...")
+            track_history[track_id] = pd.DataFrame(columns=["static_back"])
+            last_idx = 0
+            static_back = None
+        else:
+            last_idx = track_history[track_id].index[-1]
+            static_back = track_history[track_id].loc[last_idx, 'static_back']
 
         if static_back is None or static_back.shape != gray.shape:
-            static_back = gray.copy()
+            print(f"[DEBUG] Initializing static_back for track_id: {track_id}")
+            static_back = gray
             track_history[track_id].at[last_idx, 'static_back'] = static_back
             return False
 
-        # Now both static_back and gray have the same shape
+        if gray.shape != static_back.shape:
+            print(f"[DEBUG] Resizing gray to match static_back shape for track_id: {track_id}")
+            gray = cv2.resize(gray, (static_back.shape[1], static_back.shape[0]))
+
         diff_frame = cv2.absdiff(static_back, gray)
+
         thresh_frame = cv2.threshold(diff_frame, 30, 255, cv2.THRESH_BINARY)[1]
         thresh_frame = cv2.dilate(thresh_frame, None, iterations=2)
 
         contours, _ = cv2.findContours(thresh_frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for contour in contours:
-            if cv2.contourArea(contour) > motion_threshold:
-                print("mothafoka has motion")
-                return True
+            contour_area = cv2.contourArea(contour)
+            print(f"[DEBUG] Detected contour with area: {contour_area}")
+            if contour_area >= motion_threshold:
+                print(f"[DEBUG] Motion detected for track_id: {track_id}")
+                return True  # Motion detected
 
-        # Update the static_back image with the new gray frame
+        # If no motion detected, update the static background
+        print(f"[DEBUG] No motion detected. Updating static_back for track_id: {track_id}")
         track_history[track_id].at[last_idx, 'static_back'] = gray
         return False
 
@@ -571,7 +585,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
         if len(track_history[track_id]) > max_history_len:
             track_history[track_id] = track_history[track_id].drop(track_history[track_id]['frame_nb'].idxmin())
-    return track_history,motion,on_the_ground,alert
+    return track_history, motion, on_the_ground, alert
 
 
 
@@ -735,7 +749,6 @@ for vid in videos_2b_tested:
                     ymax = ymin + h
 
                     area = abs(w * h)
-
                     aspr = abs(w / h)
 
                     cropped_frame = frame[ymin:ymax, xmin:xmax]
@@ -743,28 +756,25 @@ for vid in videos_2b_tested:
                     new_track_history, no_motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area, aspr,cls_name, max_frames_fall_motion_tracking, max_frames_motion_tracking_double_check, process_frames_reduction_factor)
 
                     if check_if_last_frame_was_alert(new_track_history[track_id]):
-
                         bbox_color = RED
-                        if emergency == False:
+                        if not emergency:
                             emergency = True
                             alerts_generated.append(frame_count)
                             print("frame count of emergency: ",frame_count)
 
                             if make_eval_table:
                                 break
+                    elif on_the_ground and no_motion:
+                        bbox_color = YELLOW
+                    elif on_the_ground:
+                        bbox_color = ORANGE
                     else:
-                        if on_the_ground:
-                            bbox_color = ORANGE
-                            if no_motion:
-                                bbox_color = YELLOW
-                        else:
-                            bbox_color = GREEN
+                        bbox_color = GREEN
 
                     cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), bbox_color, thickness=2)
                     # cv2.putText(f"{frame}, id: {track_id}, {(xmin + 5, ymin - 8)}, {cv2.FONT_HERSHEY_SIMPLEX}, {1}, ")
 
                 if visualize_bbox:
-
                     standard_width, standard_height = 640, 480
                     frame = cv2.resize(frame, (standard_width, standard_height))
 
