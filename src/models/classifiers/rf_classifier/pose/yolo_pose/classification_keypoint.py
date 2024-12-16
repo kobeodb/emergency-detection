@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class NeuralNet(nn.Module):
@@ -34,12 +35,26 @@ class KeypointClassification:
         self.model.load_state_dict(
             torch.load(self.path_model, map_location=self.device)
         )
+        self.model.to(self.device)
+        self.model.eval()
+
     def __call__(self, input_keypoint):
-        if not type(input_keypoint) == torch.Tensor:
+        if not isinstance(input_keypoint, torch.Tensor):
             input_keypoint = torch.tensor(
                 input_keypoint, dtype=torch.float32
             )
-        out = self.model(input_keypoint)
-        _, predict = torch.max(out, -1)
-        label_predict = self.classes[predict]
-        return label_predict
+        input_keypoint = input_keypoint.to(self.device)
+
+        # with torch.no_grad():
+            # out = self.model(input_keypoint)
+            # _, predict = torch.max(out, -1)
+            # label_predict = self.classes[predict]
+            # return label_predict
+
+        with torch.no_grad():
+            out = self.model(input_keypoint)
+            probabilities = F.softmax(out, dim=0)
+
+            # _, predict = torch.max(probabilities, -1)
+            # label_predict = self.classes[predict]
+            return probabilities.cpu().numpy()

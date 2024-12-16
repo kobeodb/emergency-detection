@@ -43,7 +43,6 @@ class DetectKeypoint:
                 extracted_keypoints.extend([x, y])
             except IndexError:
 
-                print(f"Keypoint is missing. Using default values (0, 0).")
                 extracted_keypoints.extend([0, 0])
 
         return extracted_keypoints

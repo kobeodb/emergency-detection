@@ -15,17 +15,21 @@ from ultralytics import YOLO
 from data.movies_2_use.my_files import *
 from data.movies_2_use.student_files import *
 
-
-videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
+# videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
 # videos_2b_tested = student_positive_2b_tested
 # videos_2b_tested = my_videos_negative_2b_tested
 # videos_2b_tested = my_videos_positive_2b_tested
+# videos_2b_tested = my_videos_2b_tested_false_alert + student_videos_2b_tested_false_alert
+# videos_2b_tested = student_videos_2b_tested_false_alert
+videos_2b_tested = my_videos_2b_tested_false_alert
+# videos_2b_tested = laying_but_okay
 
 device = 'mps'
 # device = 'cuda'
 # device = 'cpu'
 
-visualize_bbox = False
+visualize_bbox = True
+make_eval_table = False
 
 ############################################################
 
@@ -60,14 +64,14 @@ assert not (use_minio and use_local and download_from_minio_and_store_in_file), 
 ##############################################################
 
 conf_thres_detection              = 0.3     #minimum confidence for yolo detection.
-secs_fall_motion_tracking         = 2       #maximum seconds between when a fall is detected and when motion tracking starts.
-secs_motion_tracking_double_check = 4       #seconds between the start of motion tracking and the double check with the classifier
+secs_fall_motion_tracking         = 1       #maximum seconds between when a fall is detected and when motion tracking starts.
+secs_motion_tracking_double_check = 6       #seconds between the start of motion tracking and the double check with the classifier
 
 prob_thres_img_classifier         = 0.5     #if prob < threshold -> emergency
                                             #if prob > threshold -> fine
-prob_thres_pose_classifier        = 0.5     # =
+prob_thres_pose_classifier        = 0.9     # =
 
-acc_in_sec_of_alert               = 5       #amount of seconds in where a frame alert is considered correct.
+acc_in_sec_of_alert               = 6       #amount of seconds in where a frame alert is considered correct.
 
 
 motion_std_multiplier_area        = 1.0     # standard deviation of bbox area above mean
@@ -78,7 +82,7 @@ motion_std_multiplier_aspr        = 1.0     # standard deviation of bbox aspect 
                                             # if the area/aspect ratio is larger than what we'd normally see 99.7% of the time
                                             # -> its considered abnormal
 
-motion_sensitivity                = 20
+motion_sensitivity                = 60
 area_motion_sensitivity           = 0.1
 aspr_motion_sensitivity           = 0.05
 
@@ -104,7 +108,7 @@ assert not (double_check_through_img_classifier and double_check_through_pose_cl
 
 use_custom_fall_detection   = False
 use_ft_yolo                 = True
-assert not (use_custom_fall_detection and use_ft_yolo),"both variables cannot be True at the same time"
+assert not (use_custom_fall_detection and use_ft_yolo),"only 1 variable can be true at the same time"
 
 #######################################################
 ## Motion tracking configuration ##
@@ -152,14 +156,13 @@ if use_custom_fall_detection:
 if use_ft_yolo:
     from utils.all_yolo_ft_classes import yolo_class_dict
 
-    yolo_detect_model="best.pt"
+    # yolo_detect_model="best.pt"
     # yolo_detect_model="best_2.pt"
     # yolo_detect_model="best_3.pt"
-    # yolo_detect_model="best_4.pt"
+    yolo_detect_model="best_4.pt"
     yolo_detect_model_path = Path(model_weight_dir / "yolo_detection" / yolo_detect_model)
 
     yolo_model = YOLO(yolo_detect_model_path)
-
 
 
 if double_check_through_img_classifier:
@@ -234,16 +237,16 @@ emergency_detected=RED
 ##########################################################
 
 if use_static_back_motion:
-    columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'motion', 'on_the_ground', 'trigger_classifier', 'alert', 'static_back', 'no_motion_on_ground_count']
+    columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'motion', 'on_the_ground', 'trigger_classifier', 'alert', 'static_back', 'on_ground_count' ,'no_motion_on_ground_count']
 if use_distance_motion:
-    columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'motion', 'on_the_ground', 'trigger_classifier', 'alert', 'no_motion_on_ground_count']
+    columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'motion', 'on_the_ground', 'trigger_classifier', 'alert', 'on_ground_count' ,'no_motion_on_ground_count']
 if use_std_dev_motion:
-    columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'aspr_bbox' ,'motion', 'on_the_ground', 'trigger_classifier', 'alert', 'no_motion_on_ground_count']
+    columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'aspr_bbox' ,'motion', 'on_the_ground', 'trigger_classifier', 'alert', 'on_ground_count' ,'no_motion_on_ground_count']
 
 
 def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id, factor):
     if use_static_back_motion:
-        motion_threshold = 10000
+        motion_threshold = 1000
 
         xmax = xmin + w
         ymax = ymin + h
@@ -337,7 +340,6 @@ def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id, factor):
         # return motion
 
 
-
 def check_if_person_is_on_the_ground(cls_name) -> bool:
     if use_custom_fall_detection:
         #todo -> this shit should probably not be in the same function but who cares
@@ -348,8 +350,6 @@ def check_if_person_is_on_the_ground(cls_name) -> bool:
             return False
         elif cls_name == 'on_the_ground':
             return True
-
-
 
 def check_for_alert_in_history(track_history, number_max_frames) -> bool:
     number_frames = min(number_max_frames, len(track_history))
@@ -365,7 +365,6 @@ def check_for_alert_in_history(track_history, number_max_frames) -> bool:
 def check_if_last_frame_was_alert(track_history) -> bool:
     last_alert = track_history.iloc[-1]
     is_alert = last_alert['alert']
-    # print('is_alert:', alert)
 
     return bool(is_alert)
 
@@ -388,7 +387,7 @@ def crop_bbox(xmin, ymin, w, h, frame):
     return cropped_frame
 
 
-def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, aspr_bbox ,cls_name, max_frames_fall_motion_tracking, max_frames_motion_tracking_double_check, process_frames_reduction_factor):
+def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, aspr_bbox ,cls_name,max_frames_fall_motion_tracking, max_frames_motion_tracking_double_check, process_frames_reduction_factor):
     """
     :param track_history:  track history containing tracking history of al all tracked objects
                            Each key is unique using track_id, and the value is a dataframe containing
@@ -410,33 +409,43 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
     trigger_classifier = False
     motion = False
     on_the_ground = False
+    no_motion_on_ground_count = 0
 
     if track_id not in track_history:
 
         if use_static_back_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, False, False, None, 0]], columns=columns)
+            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, False, False, None, 0,0]], columns=columns)
 
         if use_distance_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion,on_the_ground, False, False, 0]], columns=columns)
+            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion,on_the_ground, False, False, 0, 0]], columns=columns)
 
         if use_std_dev_motion:
-                    new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, aspr_bbox, motion,on_the_ground, False, False, 0]], columns=columns)
+                    new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, aspr_bbox, motion,on_the_ground, False, False, 0 ,0]], columns=columns)
 
         track_history[track_id] = new_record
 
     else:
+        last_record = track_history[track_id].iloc[-1]
+        prev_on_ground_count = last_record.get('on_ground_count')
+        prev_no_motion_count = last_record.get('no_motion_on_ground_count', 0)
+
         on_the_ground = check_if_person_is_on_the_ground(cls_name)
 
         if on_the_ground:
+            on_ground_count = prev_on_ground_count + 1
+            # print(f"on_ground_count: {on_ground_count}")
+        else:
+            on_ground_count = 0
+
+        if on_ground_count >= max_frames_fall_motion_tracking:
             motion = check_for_motion(frame, xmin_bbox, ymin_bbox, h_bbox, w_bbox, track_history, track_id, motion_sensitivity/process_frames_reduction_factor)
 
-        last_record = track_history[track_id].iloc[-1]
-        prev_count = last_record.get('no_motion_on_ground_count', 0)
-
-        if on_the_ground and not motion:
-            no_motion_on_ground_count = prev_count + 1
-        else:
-            no_motion_on_ground_count = 0
+            if on_the_ground and not motion:
+                no_motion_on_ground_count = prev_no_motion_count + 1
+                # print(f"no_motion_on_ground_count: {no_motion_on_ground_count}")
+            else:
+                no_motion_on_ground_count = 0
+                motion = False
 
         trigger_classifier = no_motion_on_ground_count >= max_frames_motion_tracking_double_check
 
@@ -508,18 +517,29 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
             if trigger_classifier:
                 results = yolo_pose_keypoint_detection(cropped_frame)
 
-                if not results or len(results) == 0:
-                    print(f"No keypoints detected for track_id: {track_id}, frame: {frame_nb}")
-                    trigger_classifier = False
-
                 results_keypoint = yolo_pose_keypoint_detection.get_xy_keypoint(results)
 
-                if results_keypoint is None:
-                    print(f"No keypoints detected for frame {frame_count}, skipping...")
-                    trigger_classifier = False
-
                 input_classification = results_keypoint[10:]
+                # print(input_classification)
+
+                # zero_keypoint_count = input_classification.count(0.0)
+                # print(f"zero_keypoint_count: {zero_keypoint_count}")
+                # x_threshold = 8
+                #
+                # if zero_keypoint_count >= x_threshold:
+                #     trigger_classifier = False
+                #     print("not enough keypoints detected")
+
                 prediction = yolo_pose_nn_classification(input_classification)
+                print(f"prediction: {prediction}")
+
+                emergency_proba = prediction[0]
+                no_emergency_proba = prediction[1]
+
+                if emergency_proba >= prob_thres_pose_classifier:
+                    prediction = 0
+                elif emergency_proba <= prob_thres_pose_classifier:
+                    prediction = 1
 
                 class_names = ("emergency", "no emergency")
                 predicted_label = class_names[int(prediction)]
@@ -527,7 +547,11 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                 if predicted_label == 'no emergency':
                     trigger_classifier = False
 
-                print(f'Classifier predicted: {predicted_label} on frame {frame_nb}')
+                proba = emergency_proba
+                if prediction == 1:
+                    proba = no_emergency_proba
+
+                print(f'Classifier predicted: {predicted_label}, with probability: {proba} on frame {frame_nb}')
 
 
         if trigger_classifier:
@@ -535,13 +559,13 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
         new_record = None
         if use_static_back_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, trigger_classifier, alert, static_back, no_motion_on_ground_count]], columns=columns)
+            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, trigger_classifier, alert, static_back, on_ground_count ,no_motion_on_ground_count]], columns=columns)
 
         elif use_distance_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, trigger_classifier, alert, no_motion_on_ground_count]], columns=columns)
+            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, trigger_classifier, alert, on_ground_count ,no_motion_on_ground_count]], columns=columns)
 
         elif use_std_dev_motion:
-                    new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, aspr_bbox, motion, on_the_ground, trigger_classifier, alert, no_motion_on_ground_count]], columns=columns)
+                    new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, aspr_bbox, motion, on_the_ground, trigger_classifier, on_ground_count ,alert, no_motion_on_ground_count]], columns=columns)
 
         track_history[track_id] = pd.concat([track_history[track_id], new_record], ignore_index=True)
 
@@ -725,11 +749,14 @@ for vid in videos_2b_tested:
                             emergency = True
                             alerts_generated.append(frame_count)
                             print("frame count of emergency: ",frame_count)
+
+                            if make_eval_table:
+                                break
                     else:
                         if on_the_ground:
-                            bbox_color = YELLOW
+                            bbox_color = ORANGE
                             if no_motion:
-                                bbox_color = ORANGE
+                                bbox_color = YELLOW
                         else:
                             bbox_color = GREEN
 
@@ -749,35 +776,37 @@ for vid in videos_2b_tested:
     video_cap.release()
     cv2.destroyAllWindows()
 
-    alerts_correct = []
-    alerts_false = []
-    alerts_missed = []
+    if make_eval_table:
 
-    for ground_truth_frame in ground_truth:
-        found = False
-        for alerted_frame in alerts_generated:
-            print(f"alerted frames: {alerted_frame}")
-            if (ground_truth_frame+round(secs_motion_tracking_double_check * fps_orig) - alerted_frame) <= fps_orig * acc_in_sec_of_alert:
-                found = True
+        alerts_correct = []
+        alerts_false = []
+        alerts_missed = []
 
-        if found:
-            alerts_correct.append(ground_truth_frame)
-
-        else:
-             alerts_missed.append(ground_truth_frame)
-
-    for alerted_frame in alerts_generated:
-        was_correct = False
         for ground_truth_frame in ground_truth:
-            if (ground_truth_frame+round(secs_motion_tracking_double_check * fps_orig) - alerted_frame) <= fps_orig * acc_in_sec_of_alert:
-                was_correct = True
+            found = False
+            for alerted_frame in alerts_generated:
+                print(f"alerted frames: {alerted_frame}")
+                if (ground_truth_frame+round(secs_motion_tracking_double_check * fps_orig) - alerted_frame) <= fps_orig * acc_in_sec_of_alert:
+                    found = True
 
-        if not was_correct:
-            alerts_false.append(alerted_frame)
+            if found:
+                alerts_correct.append(ground_truth_frame)
 
-    new_eval_row = {'video': vid['file'], 'truth': vid['ground_truth'], 'found':alerts_generated, 'correct': alerts_correct, 'false':alerts_false, 'missed': alerts_missed}
-    new_eval_row_df = pd.DataFrame.from_records([new_eval_row])
-    results_df = pd.concat([results_df, new_eval_row_df], ignore_index=True)
+            else:
+                 alerts_missed.append(ground_truth_frame)
+
+        for alerted_frame in alerts_generated:
+            was_correct = False
+            for ground_truth_frame in ground_truth:
+                if (ground_truth_frame+round(secs_motion_tracking_double_check * fps_orig) - alerted_frame) <= fps_orig * acc_in_sec_of_alert:
+                    was_correct = True
+
+            if not was_correct:
+                alerts_false.append(alerted_frame)
+
+        new_eval_row = {'video': vid['file'],'nicknamae': vid['nickname'] ,'truth': vid['ground_truth'], 'found':alerts_generated, 'correct': alerts_correct, 'false':alerts_false, 'missed': alerts_missed}
+        new_eval_row_df = pd.DataFrame.from_records([new_eval_row])
+        results_df = pd.concat([results_df, new_eval_row_df], ignore_index=True)
 
 
 
@@ -785,21 +814,23 @@ for vid in videos_2b_tested:
 ## Calculate precision, recall and the false alert rate.
 ####################################################################
 
-tot_truth = sum(len(row['truth']) for _, row in results_df.iterrows())
-tot_found = sum(len(row['found']) for _, row in results_df.iterrows())
-tot_correct = sum(len(row['correct']) for _, row in results_df.iterrows())
-tot_false = sum(len(row['false']) for _, row in results_df.iterrows())
-tot_missed = sum(len(row['missed']) for _, row in results_df.iterrows())
+if make_eval_table:
 
-metrics = {
-    'precision': round((tot_correct / (tot_correct + tot_false)) * 100, 2) if tot_found > 0 else 0,
-    'recall': round((tot_correct / (tot_correct + tot_missed)) * 100, 2) if tot_found > 0 else 0,
-    'false_alert_rate': round((tot_false / tot_found) * 100, 2) if tot_found > 0 else 0
-}
+    tot_truth = sum(len(row['truth']) for _, row in results_df.iterrows())
+    tot_found = sum(len(row['found']) for _, row in results_df.iterrows())
+    tot_correct = sum(len(row['correct']) for _, row in results_df.iterrows())
+    tot_false = sum(len(row['false']) for _, row in results_df.iterrows())
+    tot_missed = sum(len(row['missed']) for _, row in results_df.iterrows())
 
-print(metrics)
+    metrics = {
+        'precision': round((tot_correct / (tot_correct + tot_false)) * 100, 2) if tot_found > 0 else 0,
+        'recall': round((tot_correct / (tot_correct + tot_missed)) * 100, 2) if tot_found > 0 else 0,
+        'false_alert_rate': round((tot_false / tot_found) * 100, 2) if tot_found > 0 else 0
+    }
+
+    print(metrics)
 
 
 
 
-results_df.to_excel('results.xlsx', index=False)
+    results_df.to_excel('results.xlsx', index=False)
