@@ -94,7 +94,7 @@ ai4id_101  = {'nickname':'ai4id_101' ,'ground_truth':[400]    ,'person going dow
 # these are the latest greatest set of videos to be tested
 student_videos_2b_tested=[ai4id_100,ai4id_101,aw_100,aw_101,aw_102,aw_103,bb_105,bb_106,bb_108,bb_110,bb_15,bb_126,bb_127,bb_130,nn_1000]
 student_positive_2b_tested=[ai4id_100,nn_1000,ai4id_101,aw_100,aw_101,aw_102,aw_103]
-student_videos_2b_tested_false_alert = [bb_105,bb_106,bb_108,bb_110]
+student_videos_2b_tested_false_alert = [bb_106,bb_105,bb_108,bb_110]
 # these are the videos on which my latest algo fails
 #student_videos_2b_tested=[aw_103,bb_110]
 

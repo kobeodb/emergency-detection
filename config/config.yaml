@@ -1,8 +1,8 @@
 model:
   detector:
-    type: "yolo11n"
+    type: "yolo11s"
     confidence_threshold: 0.5
-    weights_path: "src/data/weights/yolo11n.pt"
+    weights_path: "src/data/weights/yolo_detection/yolo11s.pt"
     finetuned_weights_path: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/ai-app-bot-brigade/src/data/weights/best_4.pt"
 
   classifier:

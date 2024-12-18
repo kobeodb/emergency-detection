@@ -22,3 +22,6 @@ src/local_movies/*
 src/data/classification_data/*
 
 src/models/classifiers/rf_classifier/pose/yolo_pose/dataset/*
+
+src/data/resnet_data/*
+src/data/fall_detection_v1/
