@@ -13,6 +13,7 @@ import numpy as np
 from ultralytics import YOLO
 
 from data.movies_2_use.my_files import *
+from data.movies_2_use.student_files import *
 
 # videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
 # videos_2b_tested = student_positive_2b_tested
@@ -27,8 +28,8 @@ device = 'mps'
 # device = 'cuda'
 # device = 'cpu'
 
-visualize_bbox = False
-make_eval_table = True
+visualize_bbox  = True
+make_eval_table = False
 
 ############################################################
 
@@ -63,8 +64,8 @@ assert not (use_minio and use_local and download_from_minio_and_store_in_file), 
 ##############################################################
 
 conf_thres_detection              = 0.4     #minimum confidence for yolo detection.
-secs_fall_motion_tracking         = 0       #maximum seconds between when a fall is detected and when motion tracking starts.
-secs_motion_tracking_double_check = 3       #seconds between the start of motion tracking and the double check with the classifier
+secs_fall_motion_tracking         = 2       #maximum seconds between when a fall is detected and when motion tracking starts.
+secs_motion_tracking_double_check = 4       #seconds between the start of motion tracking and the double check with the classifier
 
 prob_thres_img_classifier         = 0.5     #if prob < threshold -> emergency
                                             #if prob > threshold -> fine
@@ -98,8 +99,8 @@ assert not (double_check_through_img_classifier and double_check_through_pose_cl
 ########################################################
 
 if double_check_through_pose_classifier:
-    use_mediapipe_pose = True
-    use_yolo_pose      = False
+    use_mediapipe_pose = False
+    use_yolo_pose      = True
     assert not (use_yolo_pose and use_mediapipe_pose), "both variable cannot be true at the same time"
 
     if use_yolo_pose:
@@ -127,9 +128,9 @@ if use_minio or download_from_minio_and_store_in_file:
 
     load_dotenv()
 
-    minio_url = os.getenv('MINIO_ENDPOINT')
-    minio_access_key = os.getenv('MINIO_ACCESS_KEY')
-    minio_secret_key = os.getenv('MINIO_SECRET_KEY')
+    minio_url = os.getenv('MINIO_URL')
+    minio_access_key = os.getenv('MINIO_USER')
+    minio_secret_key = os.getenv('MINIO_PASSWORD')
     secure=False
 
     minio_bucket_name = os.getenv('MINIO_BUCKET_NAME')
@@ -144,19 +145,41 @@ classifier_dir = Path(current_dir / "models" / "classifiers")
 
 if use_custom_fall_detection:
     from utils.all_yolo_classes import yolo_class_dict
+    import torch
+    import torch.nn as nn
+    from torchvision import models, transforms
+    from PIL import Image
 
-    yolo_detect_model = "yolo11n.pt"
+    # YOLO DETECTION
+    # yolo_detect_model = "yolo11n.pt"
+    yolo_detect_model = "yolo11s.pt"
     yolo_detect_model_path = Path(model_weight_dir / "yolo_detection" / yolo_detect_model)
 
     yolo_model = YOLO(yolo_detect_model_path)
 
+    #RESNET
+    resnet_model = models.resnet50(pretrained=False)
+    num_features = resnet_model.fc.in_features
+    resnet_model.fc = nn.Linear(num_features, 2)
+
+    # resnet_model_name = 'resnet_fall_detection.pth'
+    resnet_model_name = 'resnet_v2_fall_detection.pth'
+
+    resnet_model_path = Path(model_weight_dir / 'resnet_fall_detection' / resnet_model_name)
+
+    resnet_model.load_state_dict(torch.load(resnet_model_path, map_location=device))
+    resnet_model = resnet_model.to(device)
+    resnet_model.eval()
+
+
 if use_ft_yolo:
     from utils.all_yolo_ft_classes import yolo_class_dict
 
-    yolo_detect_model="best.pt" #if this is selected -> switch the classes in /utils/all_yolo_ft.py
+    # yolo_detect_model="best.pt"       #switch the classes in utils/all_yolo_ft_classes.py
     # yolo_detect_model="best_2.pt"
     # yolo_detect_model="best_3.pt"
-    # yolo_detect_model="best_4.pt"
+    yolo_detect_model="best_4.pt"
+
     yolo_detect_model_path = Path(model_weight_dir / "yolo_detection" / yolo_detect_model)
 
     yolo_model = YOLO(yolo_detect_model_path)
@@ -165,13 +188,13 @@ if use_ft_yolo:
 if double_check_through_img_classifier:
     import torch
     import yaml
-    from src.models.classifiers.img.cnn.classifier import CNN
+    from models.classifiers.img_classifier.classifier import CNN
 
     config_path = '../config/config.yaml'
     with open(config_path) as f:
         config = yaml.safe_load(f)
 
-    img_classifier_path = Path(classifier_dir / "img" / "cnn")
+    img_classifier_path = Path(classifier_dir / "img_classifier")
 
     img_classifier  = CNN(config).to(device)
     checkpoint = torch.load(Path(img_classifier_path / 'best_model.pth'), map_location=device)
@@ -194,11 +217,13 @@ if double_check_through_pose_classifier and use_mediapipe_pose:
     rf_model = joblib.load(rf_model_path)
 
 if double_check_through_pose_classifier and use_yolo_pose:
-    from models.classifiers.pose.detection_keypoints_yolo import DetectKeypoint
+    from models.classifiers.rf_classifier.pose.yolo_pose.detection_keypoints import DetectKeypoint
 
     if use_yolo_nn:
         import torch
-        from models.classifiers.pose.nn.yolo_pose import KeypointClassification
+        import torch.nn as nn
+        from models.classifiers.rf_classifier.pose.yolo_pose.classification_keypoint import NeuralNet
+        from models.classifiers.rf_classifier.pose.yolo_pose.classification_keypoint import KeypointClassification
 
 
         # yolo_pose_nn_name = 'pose_classification.pt'
@@ -221,6 +246,10 @@ if double_check_through_pose_classifier and use_yolo_pose:
         yolo_rf_model = joblib.load(yolo_rf_model_path)
 
 
+
+
+    # yolo_pose_model = NeuralNet(24, 256, 2)
+    # yolo_pose_model.load_state_dict(torch.load(yolo_pose_nn_path, map_location=device))
 
 
 
@@ -253,7 +282,7 @@ if use_std_dev_motion:
     columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'aspr_bbox' ,'motion', 'on_the_ground', 'trigger_classifier', 'alert', 'on_ground_count' ,'no_motion_on_ground_count']
 
 
-def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id, factor):
+def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id):
     if use_static_back_motion:
         motion_threshold = 1000
 
@@ -319,6 +348,18 @@ def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id, factor):
             w_prev = row[col_w]
             h_prev = row[col_h]
 
+            print(f"xmin {xmin}")
+            print(f"xprev {x_prev}")
+
+            print(f"prev_W: {w_prev}")
+            print(f"prev_H: {h_prev}")
+
+            print(f"change in distance: {abs(xmin - x_prev)}")
+
+            factor = max(2, abs((w_prev + h_prev) / motion_sensitivity))
+
+            print(f"factor: {factor}")
+
             if (abs(x_prev - xmin) > w_prev / factor or abs(y_prev - ymin) > h_prev / factor or abs(
                     w_prev - w) > w_prev / factor or abs(h_prev - h) > h_prev / factor):
                 motion = True
@@ -363,9 +404,19 @@ def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id, factor):
         # return motion
 
 
-def check_if_person_is_on_the_ground(cls_name) -> bool:
+def check_if_person_is_on_the_ground(cls_name, input_tensor) -> bool:
     if use_custom_fall_detection:
-        #todo -> this shit should probably not be in the same function but who cares
+        if input_tensor is not None:
+            with torch.no_grad():
+                outputs = resnet_model(input_tensor)
+                _, predicted = torch.max(outputs, 1)
+
+            class_names = ['Fall', 'No Fall']
+            predicted_label = class_names[predicted.item()]
+            print(f"ResNet Classifier: {predicted_label}")
+
+            return predicted_label == 'Fall'
+
         return False
 
     if use_ft_yolo:
@@ -410,7 +461,7 @@ def crop_bbox(xmin, ymin, w, h, frame):
     return cropped_frame
 
 
-def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, aspr_bbox ,cls_name,max_frames_fall_motion_tracking, max_frames_motion_tracking_double_check, process_frames_reduction_factor):
+def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, aspr_bbox ,cls_name,max_frames_fall_motion_tracking, max_frames_motion_tracking_double_check, process_frames_reduction_factor, input_tensor):
     """
     :param track_history:  track history containing tracking history of al all tracked objects
                            Each key is unique using track_id, and the value is a dataframe containing
@@ -449,10 +500,16 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
     else:
         last_record = track_history[track_id].iloc[-1]
-        prev_on_ground_count = last_record.get('on_ground_count')
+        prev_on_ground_count = last_record.get('on_ground_count', 0)
         prev_no_motion_count = last_record.get('no_motion_on_ground_count', 0)
 
-        on_the_ground = check_if_person_is_on_the_ground(cls_name)
+        if use_custom_fall_detection:
+            if input_tensor is not None:
+                on_the_ground = check_if_person_is_on_the_ground(cls_name, input_tensor)
+            else:
+                on_the_ground = last_record['on_the_ground']
+        else:
+            on_the_ground = check_if_person_is_on_the_ground(cls_name, input_tensor)
 
         if on_the_ground:
             on_ground_count = prev_on_ground_count + 1
@@ -461,7 +518,9 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
             on_ground_count = 0
 
         if on_ground_count >= max_frames_fall_motion_tracking:
-            motion = check_for_motion(frame, xmin_bbox, ymin_bbox, h_bbox, w_bbox, track_history, track_id, motion_sensitivity/process_frames_reduction_factor)
+            # factor = motion_sensitivity/process_frames_reduction_factor
+            # factor = motion_sensitivity/(w_bbox*h_bbox)
+            motion = check_for_motion(frame, xmin_bbox, ymin_bbox, h_bbox, w_bbox, track_history, track_id)
 
             if on_the_ground and not motion:
                 no_motion_on_ground_count = prev_no_motion_count + 1
@@ -535,6 +594,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                     trigger_classifier = False
                 print(f'Classifier predicted: {predicted_label} with probability: {prediction} on frame {frame_nb}')
 
+
         if double_check_through_pose_classifier and use_yolo_pose and not alr_alerted:
             if trigger_classifier:
 
@@ -543,6 +603,15 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                 results_keypoint = yolo_pose_keypoint_detection.get_xy_keypoint(results)
 
                 input_classification = results_keypoint[10:]
+                # print(input_classification)
+
+                # zero_keypoint_count = input_classification.count(0.0)
+                # print(f"zero_keypoint_count: {zero_keypoint_count}")
+                # x_threshold = 8
+                #
+                # if zero_keypoint_count >= x_threshold:
+                #     trigger_classifier = False
+                #     print("not enough keypoints detected")
 
                 if use_yolo_nn:
                     prediction = yolo_pose_nn_classification(input_classification)
@@ -569,8 +638,6 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                     print(f'Classifier predicted: {predicted_label}, with probability: {proba} on frame {frame_nb}')
 
                 if use_yolo_rf:
-
-                    pose_keypoints = np.array(input_classification).reshape(1, -1)
 
                     prediction = yolo_rf_model.predict_proba(pose_keypoints)[0, 1]
 
@@ -604,7 +671,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
         if len(track_history[track_id]) > max_history_len:
             track_history[track_id] = track_history[track_id].drop(track_history[track_id]['frame_nb'].idxmin())
-    return track_history, motion, on_the_ground, alert
+    return track_history,motion,on_the_ground,alert
 
 
 
@@ -614,7 +681,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 ## Videos are being retrieved from minio and stored in a temporary file
 ## Algorithm steps:
 ##       - Detection
-##       - Alert
+##       - Alert -> alert updates the track history per track id each frame to determine a fall, motion and emergency
 
 
 results_df = pd.DataFrame(columns=['video','truth','found','correct','false','missed'])
@@ -676,8 +743,12 @@ for vid in videos_2b_tested:
     fps_orig = video_cap.get(cv2.CAP_PROP_FPS)
     print('resolution:' + str(h_res) + 'x' + str(v_res) + ' fps:' + str(fps_orig))
 
-    process_frames_reduction_factor = 3 #this will perform frameskipping, for example
-                                        # -> if the fps of the video is 30 fps, this will now be reduced to 10fps
+    process_frames_reduction_factor = 6  # this will perform frameskipping, for example
+    # -> if the fps of the video is 30 fps, this will now be reduced to 10fps
+
+    custom_classifier_trigger_factor = 12  # this will trigger the detection classifier every nth frame
+
+
     fps_reduced=round(fps_orig/process_frames_reduction_factor)
 
     max_frames_fall_motion_tracking = round(fps_reduced*secs_fall_motion_tracking)
@@ -714,6 +785,8 @@ for vid in videos_2b_tested:
 
         clean_frame = frame.copy()
 
+
+
         frame_count=frame_count+1
         if (frame_count % process_frames_reduction_factor) == 0:
 
@@ -721,7 +794,10 @@ for vid in videos_2b_tested:
             ## DETECTION ##
             #########################
 
-            tracked_results = yolo_model.track(frame, verbose=False, persist=True)[0]
+            if use_custom_fall_detection:
+                tracked_results = yolo_model.track(frame, verbose=False, persist=True, classes=[0])[0]
+            elif use_ft_yolo:
+                tracked_results = yolo_model.track(frame, verbose=False, persist=True)[0]
 
             bboxs_and_conf_clss = []
 
@@ -768,32 +844,55 @@ for vid in videos_2b_tested:
                     ymax = ymin + h
 
                     area = abs(w * h)
+
                     aspr = abs(w / h)
 
                     cropped_frame = frame[ymin:ymax, xmin:xmax]
 
-                    new_track_history, no_motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area, aspr,cls_name, max_frames_fall_motion_tracking, max_frames_motion_tracking_double_check, process_frames_reduction_factor)
+                    input_tensor = None
+
+                    if frame_count % custom_classifier_trigger_factor == 0:
+                        if use_custom_fall_detection:
+                            preprocess = transforms.Compose([
+                                transforms.Resize((224, 224)),
+                                transforms.ToTensor(),
+                                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                            ])
+
+                            cropped_frame_rgb = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
+                            cropped_frame_pil = Image.fromarray(cropped_frame_rgb)
+
+
+                            input_tensor = preprocess(cropped_frame_pil).unsqueeze(0).to(device)
+
+
+
+
+                    new_track_history, no_motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area, aspr,cls_name, max_frames_fall_motion_tracking, max_frames_motion_tracking_double_check, process_frames_reduction_factor, input_tensor)
 
                     if check_if_last_frame_was_alert(new_track_history[track_id]):
+
                         bbox_color = RED
-                        if not emergency:
+                        if emergency == False:
                             emergency = True
                             alerts_generated.append(frame_count)
                             print("frame count of emergency: ",frame_count)
 
                             if make_eval_table:
                                 break
-                    elif on_the_ground and no_motion:
-                        bbox_color = YELLOW
-                    elif on_the_ground:
-                        bbox_color = ORANGE
                     else:
-                        bbox_color = GREEN
+                        if on_the_ground:
+                            bbox_color = ORANGE
+                            if no_motion:
+                                bbox_color = YELLOW
+                        else:
+                            bbox_color = GREEN
 
                     cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), bbox_color, thickness=2)
                     # cv2.putText(f"{frame}, id: {track_id}, {(xmin + 5, ymin - 8)}, {cv2.FONT_HERSHEY_SIMPLEX}, {1}, ")
 
                 if visualize_bbox:
+
                     standard_width, standard_height = 640, 480
                     frame = cv2.resize(frame, (standard_width, standard_height))
 
