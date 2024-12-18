@@ -43,15 +43,17 @@ As of right now our yolo-pose w/ neural network is the best performing classifie
 Collecting more data 
 
 ## Results
-For a set of 38 videos (... negative/... positive) the algorithm scored
+For a set of 38 videos (17 negative/21 positive) the algorithm scored
 
-- 87.5% precision
-- % recall
+- 88% precision
+- 67% recall
 - 12.5% false alert rate
 
-<img width="667" alt="Screenshot 2024-12-08 at 22 10 10" src="https://github.com/user-attachments/assets/27fd0369-d4d4-449c-b266-242c51765a0e">
+<img width="616" alt="Screenshot 2024-12-18 at 20 04 57" src="https://github.com/user-attachments/assets/a9951165-bb09-4430-9fdc-1b2f7e1b5e12" />
 
-This marks a significant improvement compared to previous weeks. However, the evaluation highlights areas where our algorithm is still falling short. In certain scenarios, the classifier continues to make incorrect classifications (red), which is unacceptable in critical situations. Additionally, the fine-tuned YOLO model occasionally fails to perform accurately, resulting in missed alert detections (yellow).
+
+This marks a significant improvement compared to previous weeks. However, the evaluation highlights areas where our algorithm is still falling short. For the classifier specifically we can see that our classifier is working really well only making 2 mis-classifications (red). We believe this is also preventable by using more training data.  On the other hand, the fine-tuned YOLO model fails to perform accurately alot of the time, resulting in missed alert detections (yellow). We believe this is also preventable by trying other approaches as discussed earlier in this README.
+
 
 
 ## The sources
