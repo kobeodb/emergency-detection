@@ -13,7 +13,6 @@ import numpy as np
 from ultralytics import YOLO
 
 from data.movies_2_use.my_files import *
-from data.movies_2_use.student_files import *
 
 # videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
 # videos_2b_tested = student_positive_2b_tested
@@ -168,13 +167,13 @@ if use_ft_yolo:
 if double_check_through_img_classifier:
     import torch
     import yaml
-    from models.classifiers.img_classifier.classifier import CNN
+    from src.models.classifiers.img.cnn.classifier import CNN
 
     config_path = '../config/config.yaml'
     with open(config_path) as f:
         config = yaml.safe_load(f)
 
-    img_classifier_path = Path(classifier_dir / "img_classifier")
+    img_classifier_path = Path(classifier_dir / "img" / "cnn")
 
     img_classifier  = CNN(config).to(device)
     checkpoint = torch.load(Path(img_classifier_path / 'best_model.pth'), map_location=device)
@@ -198,10 +197,8 @@ if double_check_through_pose_classifier and use_mediapipe_pose:
 
 if double_check_through_pose_classifier and use_yolo_pose:
     import torch
-    import torch.nn as nn
-    from models.classifiers.rf_classifier.pose.yolo_pose.classification_keypoint import NeuralNet
-    from models.classifiers.rf_classifier.pose.yolo_pose.classification_keypoint import KeypointClassification
-    from models.classifiers.rf_classifier.pose.yolo_pose.detection_keypoints import DetectKeypoint
+    from models.classifiers.pose.nn.yolo_pose.classification_keypoint import KeypointClassification
+    from models.classifiers.pose.detection_keypoints_yolo import DetectKeypoint
 
     yolo_pose_nn_name = 'pose_classification.pt'
 
