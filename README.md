@@ -36,11 +36,11 @@ Our current classifiers are all pose based and consist of:
 - yolo-pose w/ random forest classifier
 - yolo-pose w/ neural network
 
-As of right now our yolo-pose w/ neural network is the best performing classifier we have:
+As of right now our yolo-pose w/ random forest classifier is the best performing classifier on inference we have. Metrics for this classifier on a test set are:
 
-<img width="385" alt="Screenshot 2024-12-18 at 03 22 50" src="https://github.com/user-attachments/assets/adf39d9c-f0d6-491a-8168-5d1bdd5034e0" />
+<img width="452" alt="Screenshot 2024-12-18 at 20 13 43" src="https://github.com/user-attachments/assets/92ba61b3-7038-4357-aa2a-3cc0b537686e" />
 
-Collecting more data 
+These results are the results training on a dataset with a slight class imbalance. Fixing this + adding even more images will probably return even better results.
 
 ## Results
 For a set of 38 videos (17 negative/21 positive) the algorithm scored
