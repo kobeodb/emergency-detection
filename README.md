@@ -107,7 +107,7 @@ This is an overview of the current structure of our models directory. This is wh
 training the classifiers and fall detector. Running the script contained inside each directory will start the training process 
 of the classifier or detector if the necessary data is supplied.  
  
-The repository does not include any data or model files for you, so you will need to provide your own datasets and pre-trained models to proceed.
+The repository does not include any data or model files for you, so you will need to provide your own datasets to train or use your own pre-trained models to proceed.
 You can also check the Bot Brigade MinIO bucket for weight files. 
 
 
