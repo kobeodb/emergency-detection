@@ -45,9 +45,9 @@ Collecting more data
 ## Results
 For a set of 38 videos (... negative/... positive) the algorithm scored
 
-- ...% precision
-- ...% recall
-- ...% false alert rate
+- 87.5% precision
+- % recall
+- 12.5% false alert rate
 
 <img width="667" alt="Screenshot 2024-12-08 at 22 10 10" src="https://github.com/user-attachments/assets/27fd0369-d4d4-449c-b266-242c51765a0e">
 
@@ -106,8 +106,14 @@ training the classifiers and fall detector. Running the script contained inside 
 of the classifier or detector if the necessary data is supplied.  
  
 The repository does not include any data or model files for you, so you will need to provide your own datasets and pre-trained models to proceed.
+You can also check the Bot Brigade MinIO bucket for weight files. 
+
+# Results
+## Random Forest classifier YOLO Pose 
+![img_1.png](img_1.png)
 
 # Open Issues
+
 ***
 - Things to do are registered in [github tasks](https://github.com/mxttywxtty/bot-brigade/issues?q=is%3Aissue+is%3Aopen+label%3Atask)
 - Bugs are registered in [known open bugs](https://github.com/mxttywxtty/bot-brigade/issues?q=is%3Aissue+is%3Aopen+label%3Abug+)
