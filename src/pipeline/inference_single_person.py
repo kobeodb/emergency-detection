@@ -1,12 +1,10 @@
 import time
 
 import cv2
-import numpy as np
 import torch
 import yaml
 from ultralytics import YOLO
-import torch.nn.functional as func
-from src.models.classifiers.classifier import CNN
+from src.models.classifiers.img_classifier.classifier import CNN
 
 
 class EmergencyDetection:
@@ -196,5 +194,5 @@ class EmergencyDetection:
 
 
 if __name__ == "__main__":
-    system = EmergencyDetection('../../config/config.yaml', '../models/classifiers/best_model.pth')
-    system.process_video('../data/pipeline_eval_data/test_videos/Segway Fall.mp4')
+    system = EmergencyDetection('../../config/config.yaml', '../models/classifiers/img_classifier/best_model.pth')
+    system.process_video('../data/pipeline_eval_data/test_videos/simulation_chantier.mp4')
