@@ -26,6 +26,8 @@ src/models/classifiers/img/cnn/best_model.pth
 src/models/fall_detector/runs/*
 src/models/fall_detector/src/*
 
+src/yolo11n-pose.pt
+
 
 
 #config
