@@ -16,7 +16,7 @@ For the detection of a fall we fine-tuned a yolov11n model. this fine-tuned mode
 
 However, we have observed that the fine-tuned model is not performing as accurately as expected. Despite retraining multiple models on enhanced datasets, the performance has reached a plateau, showing no further improvement. This presents a significant challenge as we aim to achieve optimal performance.
 
-To address this, we are exploring alternative approaches for fall detection. Our current ideas include:
+To address this, we maybe want to explore alternative approaches for fall detection in the future. Our current ideas include:
 - Adaboost: Creating a few weak classifiers (stomps) for example: bbox area over time, aspect ratio, ... and feeding these classifiers to an adaboost algorithm to create 1 good lightweight classifier for detecting a fall alongside yolo for the person detection.
 
 
@@ -40,7 +40,7 @@ As of right now our yolo-pose w/ neural network is the best performing classifie
 
 <img width="385" alt="Screenshot 2024-12-18 at 03 22 50" src="https://github.com/user-attachments/assets/adf39d9c-f0d6-491a-8168-5d1bdd5034e0" />
 
- 
+Collecting more data 
 
 ## Results
 For a set of 38 videos (... negative/... positive) the algorithm scored
