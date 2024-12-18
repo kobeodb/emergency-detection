@@ -13,14 +13,15 @@ import numpy as np
 from ultralytics import YOLO
 
 from data.movies_2_use.my_files import *
+from data.movies_2_use.student_files import *
 
-# videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
+videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
 # videos_2b_tested = student_positive_2b_tested
 # videos_2b_tested = my_videos_negative_2b_tested
 # videos_2b_tested = my_videos_positive_2b_tested
 # videos_2b_tested = my_videos_2b_tested_false_alert + student_videos_2b_tested_false_alert
 # videos_2b_tested = student_videos_2b_tested_false_alert
-videos_2b_tested = my_videos_2b_tested_false_alert
+# videos_2b_tested = my_videos_2b_tested_false_alert
 # videos_2b_tested = laying_but_okay
 
 device = 'mps'
@@ -98,8 +99,8 @@ assert not (double_check_through_img_classifier and double_check_through_pose_cl
 ########################################################
 
 if double_check_through_pose_classifier:
-    use_mediapipe_pose = True
-    use_yolo_pose      = False
+    use_mediapipe_pose = False
+    use_yolo_pose      = True
     assert not (use_yolo_pose and use_mediapipe_pose), "both variable cannot be true at the same time"
 
     if use_yolo_pose:
@@ -198,7 +199,7 @@ if double_check_through_pose_classifier and use_yolo_pose:
 
     if use_yolo_nn:
         import torch
-        from models.classifiers.pose.nn.yolo_pose import KeypointClassification
+        from models.classifiers.pose.nn.yolo_pose.classification_keypoint import KeypointClassification
 
 
         # yolo_pose_nn_name = 'pose_classification.pt'
@@ -429,7 +430,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
     alert = False
     static_back = None
-    trigger_classifier = False
+    generate_alert = False
     motion = False
     on_the_ground = False
     no_motion_on_ground_count = 0
@@ -470,7 +471,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                 no_motion_on_ground_count = 0
                 motion = False
 
-        trigger_classifier = no_motion_on_ground_count >= max_frames_motion_tracking_double_check
+        generate_alert = no_motion_on_ground_count >= max_frames_motion_tracking_double_check
 
         if use_static_back_motion:
             static_back = track_history[track_id].iloc[-1]['static_back']
@@ -481,7 +482,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
         cropped_frame = crop_bbox(xmin, ymin, w, h, frame)
 
         if double_check_through_img_classifier and not alr_alerted:
-            if trigger_classifier:
+            if generate_alert:
                 with torch.no_grad():
 
                     crop_tensor = cv2.resize(cropped_frame, (128, 128))
@@ -499,12 +500,12 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                     predicted_label = class_names[pred_label_index]
 
                     if predicted_label == 'no emergency':
-                        trigger_classifier = False
+                        generate_alert = False
                     print(f'Classifier predicted: {predicted_label} with probability: {score} on frame {frame_nb}')
 
 
         if double_check_through_pose_classifier and use_mediapipe_pose and not alr_alerted:
-            if trigger_classifier:
+            if generate_alert:
                 cropped_frame_rgb = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
                 cropped_frame_rgb = cv2.resize(cropped_frame_rgb, (256, 256))
 
@@ -523,6 +524,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
                 prediction = rf_model.predict_proba(pose_keypoints)[0, 1]
 
+
                 if prediction > prob_thres_pose_classifier:
                     pred_label_index = 1
                 if prediction < prob_thres_pose_classifier:
@@ -532,11 +534,11 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                 predicted_label = class_names[pred_label_index]
 
                 if predicted_label == 'no emergency':
-                    trigger_classifier = False
+                    generate_alert = False
                 print(f'Classifier predicted: {predicted_label} with probability: {prediction} on frame {frame_nb}')
 
         if double_check_through_pose_classifier and use_yolo_pose and not alr_alerted:
-            if trigger_classifier:
+            if generate_alert:
 
                 results = yolo_pose_keypoint_detection(cropped_frame)
 
@@ -552,15 +554,15 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                     no_emergency_proba = prediction[1]
 
                     if emergency_proba >= prob_thres_pose_classifier:
-                        prediction = 0
+                        prediction = 0 #fine
                     elif emergency_proba <= prob_thres_pose_classifier:
-                        prediction = 1
+                        prediction = 1 #need help
 
-                    class_names = ("emergency", "no emergency")
+                    class_names = ("no emergency", "emergency")
                     predicted_label = class_names[int(prediction)]
 
                     if predicted_label == 'no emergency':
-                        trigger_classifier = False
+                        generate_alert = False
 
                     proba = emergency_proba
                     if prediction == 1:
@@ -572,33 +574,34 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
                     pose_keypoints = np.array(input_classification).reshape(1, -1)
 
-                    prediction = yolo_rf_model.predict_proba(pose_keypoints)[0, 1]
+                    prediction = yolo_rf_model.predict_proba(pose_keypoints)[0, 1]  # probability of class 1 (need help)
 
-                    if prediction > prob_thres_pose_classifier:
-                        pred_label_index = 1
-                    if prediction < prob_thres_pose_classifier:
+
+                    if prediction > prob_thres_pose_classifier: # prediction of class 1 (need help) is larger than the threshold
                         pred_label_index = 0
+                    if prediction < prob_thres_pose_classifier:
+                        pred_label_index = 1
 
                     class_names = ("emergency", "no emergency")
                     predicted_label = class_names[pred_label_index]
 
                     if predicted_label == 'no emergency':
-                        trigger_classifier = False
+                        generate_alert = False
                     print(f'Classifier predicted: {predicted_label} with probability: {prediction} on frame {frame_nb}')
 
 
-        if trigger_classifier:
+        if generate_alert:
             alert = True
 
         new_record = None
         if use_static_back_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, trigger_classifier, alert, static_back, on_ground_count ,no_motion_on_ground_count]], columns=columns)
+            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, generate_alert, alert, static_back, on_ground_count ,no_motion_on_ground_count]], columns=columns)
 
         elif use_distance_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, trigger_classifier, alert, on_ground_count ,no_motion_on_ground_count]], columns=columns)
+            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, generate_alert, alert, on_ground_count ,no_motion_on_ground_count]], columns=columns)
 
         elif use_std_dev_motion:
-                    new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, aspr_bbox, motion, on_the_ground, trigger_classifier, on_ground_count ,alert, no_motion_on_ground_count]], columns=columns)
+                    new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, aspr_bbox, motion, on_the_ground, generate_alert, on_ground_count ,alert, no_motion_on_ground_count]], columns=columns)
 
         track_history[track_id] = pd.concat([track_history[track_id], new_record], ignore_index=True)
 
