@@ -47,14 +47,13 @@ We have also experimented with a 2d cnn classifier and used the rgb values of im
 ## Results
 For a set of 38 videos (17 negative/21 positive) the algorithm scored
 
-- 88% precision
+- 100% precision
 - 67% recall
-- 12.5% false alert rate
+- 0.0% false alert rate
 
-<img width="616" alt="Screenshot 2024-12-18 at 20 04 57" src="https://github.com/user-attachments/assets/a9951165-bb09-4430-9fdc-1b2f7e1b5e12" />
+<img width="616" alt="Screenshot 2024-12-18 at 22 38 14" src="https://github.com/user-attachments/assets/d8b191e0-78d0-41ad-bc86-4005a5a03b27" />
 
-
-This marks a significant improvement compared to previous weeks. However, the evaluation highlights areas where our algorithm is still falling short. For the classifier specifically we can see that our classifier is working really well only making 2 mis-classifications (red). We believe this is also preventable by using more training data.  On the other hand, the fine-tuned YOLO model fails to perform accurately alot of the time, resulting in missed alert detections (yellow). We believe this is also preventable by trying other approaches as discussed earlier in this README.
+This marks a real significant improvement compared to previous weeks. However, the evaluation highlights areas where our algorithm is still falling short. This area is the detection of a person. The fine-tuned YOLO model still fails to detect persons accurately in certain situations, resulting in missed alert detections (yellow). We believe this is also preventable by trying other approaches as discussed earlier in this README.
 
 
 
