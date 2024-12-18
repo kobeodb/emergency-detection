@@ -110,9 +110,6 @@ of the classifier or detector if the necessary data is supplied.
 The repository does not include any data or model files for you, so you will need to provide your own datasets and pre-trained models to proceed.
 You can also check the Bot Brigade MinIO bucket for weight files. 
 
-# Results
-## Random Forest classifier YOLO Pose 
-![img_1.png](img_1.png)
 
 # Open Issues
 
