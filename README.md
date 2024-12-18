@@ -42,6 +42,8 @@ As of right now our yolo-pose w/ random forest classifier is the best performing
 
 These results are the results training on a dataset with a slight class imbalance. Fixing this + adding even more images will probably return even better results.
 
+We have also experimented with a 2d cnn classifier and used the rgb values of images as input. But this isn't in use anymore.
+
 ## Results
 For a set of 38 videos (17 negative/21 positive) the algorithm scored
 
