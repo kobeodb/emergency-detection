@@ -16,19 +16,14 @@ For the detection of a fall we fine-tuned a yolov11n model. this fine-tuned mode
 
 However, we have observed that the fine-tuned model is not performing as accurately as expected. Despite retraining multiple models on enhanced datasets, the performance has reached a plateau, showing no further improvement. This presents a significant challenge as we aim to achieve optimal performance.
 
-To address this, we are exploring alternative approaches for fall detection. Our current ideas include:
-- Lightweight Classifier: Developing a classifier specifically trained to distinguish between individuals lying on the ground and those who are not. Running this classifier on every (third) frame could provide an effective solution.
-- Custom Logic Using Bounding Box Coordinates: Designing a rule-based approach leveraging the coordinates of the bounding boxes over time to detect falls. This method is also under active consideration.
-
-We think making our own logic would be more robust than training a classifier for this specific task. Therefore we will implement the custom logic first and evaluate the performance. If we are not happy with the performance, and we are out of idea's for enhancing the logic, then we will implement the classifier
+To address this, we maybe want to explore alternative approaches for fall detection in the future. Our current ideas include:
+- Adaboost: Creating a few weak classifiers (stomps) for example: bbox area over time, aspect ratio, ... and feeding these classifiers to an adaboost algorithm to create 1 good lightweight classifier for detecting a fall alongside yolo for the person detection.
 
 
 ### Motion detection of people that fell on the ground (or lay down).
 Detecting individuals falling to the ground is not sufficient to trigger a 112 alert, as the person may simply stand up and walk away afterward. In contrast, individuals who have suffered a cardiac arrest or stroke typically remain motionless after falling, requiring immediate assistance.
 
-To check for motion after a person is detected as being on the floor, we implemented a [simple motion tracker](https://medium.com/@adeevmardia/building-a-simple-motion-detector-with-python-and-opencv-916a39a4f2cb).
-
-he process involves converting frames to grayscale and applying blurring to minimize noise. Each frame is then compared to a static background to detect differences. These detected changes are binarized, and contours are extracted to identify regions of motion.
+To check for motion after a person is detected as being on the floor, we implemented a simple distance based motion tracking that will look at the distance between the bbox coordinates in the current frame and in the previous frame. This distance is then campared to a factor calculated by a dynamic number (area of bbox) devided by a hard coded motion threshold.
 
 This simple yet effective method allows real-time detection and logging of motion events, making it ideal for surveillance applications.
 
@@ -36,23 +31,23 @@ This simple yet effective method allows real-time detection and logging of motio
 Detecting whether an individual is motionless on the ground is not sufficient to trigger a 112 alert, as it’s possible for someone to be on the ground (in the grass taking a nap) without motion without.
 Our goal is to differentiate between situations where motionless individuals are fine and those where they are experiencing an emergency.
 
-So far, we have explored 2 techniques:
-- We used MediaPipe to extract pose keypoints, which were then input into an XGBoost classifier trained on keypoints from images of individuals both fine and in need of assistance. While this approach produced decent results, we found that MediaPipe's keypoint extraction lacked sufficient accuracy.
-- We shifted focus to a 2D CNN built from scratch. The network takes cropped frames from bounding boxes as input, using three RGB channels. This classifier was trained on the same dataset and has shown reasonable performance during evaluation. However, it still occasionally fails to classify correctly.
+Our current classifiers are all pose based and consist of:
+- mediapipe w/ random forest classifier
+- yolo-pose w/ random forest classifier
+- yolo-pose w/ neural network
 
-After testing the 2d cnn classifier on a test set we had some great results:
-<img width="946" alt="Screenshot_2024-12-07_at_21 52 08" src="https://github.com/user-attachments/assets/d23b6747-f97e-4e5b-84bb-eec250fefc01">
+As of right now our yolo-pose w/ neural network is the best performing classifier we have:
 
-But as you can see in the evaluation below, we still want to improve upon these methods, that's why we are revisiting pose keypoint extraction. This time, the extracted keypoints will be used as input to a random forest classifier.
+<img width="385" alt="Screenshot 2024-12-18 at 03 22 50" src="https://github.com/user-attachments/assets/adf39d9c-f0d6-491a-8168-5d1bdd5034e0" />
 
-Our plan is to compare the performance of the 2D CNN and the pose-based random forest classifier. Based on the results, we will decide which approach to refine further.
+Collecting more data 
 
 ## Results
-For a set of 23 videos (10 negative/13 positive) the algorithm scored
+For a set of 38 videos (... negative/... positive) the algorithm scored
 
-- 71% precision
-- 71% recall
-- 29% false alert rate
+- ...% precision
+- ...% recall
+- ...% false alert rate
 
 <img width="667" alt="Screenshot 2024-12-08 at 22 10 10" src="https://github.com/user-attachments/assets/27fd0369-d4d4-449c-b266-242c51765a0e">
 
