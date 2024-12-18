@@ -4,7 +4,7 @@
 Eyes4Rescue is an AI-powered project aimed at detecting and responding to emergency situations involving individuals who have fallen and may need urgent assistance. The primary goal of this project is to reduce the time it takes to interfere with a given case. We want to be able to determine, based on signals like motion, if a person is in need of help and thus notify the emergency services as quickly as possible. 
  
 By leveraging computer vision techniques such as YOLOv11 for object detection, MediaPipe for pose estimation and custom built classifiers, the project aims to make a difference in the time it takes to interfere in emergencies. The system analyzes video feeds to detect falls, track motion, and assess whether a person is in need of help based on their behavior after the fall. This project is a step toward creating more efficient and reliable emergency response systems through real-time video analysis and AI.
-## General Architecture + Ideas
+## General architecture & Ideas
 ***
 
 ### Detect and track people.
@@ -57,46 +57,58 @@ This marks a significant improvement compared to previous weeks. However, the ev
 ## The sources
 ***
 
-### alert detector: inference_single_person.py (in ./src/pipeline dir)
+### Entry point: `main.py` 
+Inside the source directory (`src`) you will find the main entrypoint of our application. When opening this script there are 
+several configurable variables that influence the performance of the application running over videos. These variables are used 
+for changing approaches on how you want to evaluate a certain video with different technology. Running this script will start the 
+video evaluation process.  
 
-This Python script contains the final alert detection algorithm, containing all the logic for how emergencies are identified.
+Example:
+```python
+#######################################################
+## fall detection configuration ##
+#######################################################
+""" Specify custom weights vs. stock weights """
+use_custom_fall_detection   = False # Will use custom weights
+use_ft_yolo                 = True  # Will use stock weights 
+assert not (use_custom_fall_detection and use_ft_yolo), "only 1 variable can be true at the same time"
+```
+Before running the entry point, make sure python version 3.11 is installed and you have installed all requirements with the 
+following command: 
+```commandline
+pip install -r requirements.txt
+```
 
+If all goes well, you should be able to run the alert detector script!
 
-### classifier.py (in ./src/models/classifier dir)
-
-This python script hold the architecture of the 2d cnn and the data loading.
-
-
-### algorithm_eval_table.py (in ./src/models/metrics dir)
-
-This Python script generates the evaluation table by utilizing the alert detection algorithm and iterating through specified videos.
-
-
-### config.yaml (in ./config dir)
-
-This yaml file hold all the adjustable parameters across all models (yolo and classifier) and all paths.
-
-## How to run scripts and reproduce the results
-***
-
-### Setup your python environment
-
-- python version: 3.11
-- pip install -r requirements
-
-### Setup all the right paths and device
-
-- In the config.yaml file, update the paths to match your own directory structure. Additionally, if you want to train the YOLO model or the classifier, make sure to set the device field to the hardware you are using (e.g., cpu, cuda, etc.).
-
-### training yolo model and classifier
-- The repository does not include any data or model files, so you will need to provide your own datasets and pre-trained models to proceed.
-
-## Run the alert detector script.
-- If all goes well you should be able to run the alert detector script after you have specified the video you want to run the algorithm on.
+### Classifiers: 
+``` 
+├───classifiers
+│   ├───img
+│   │   └───cnn
+│   ├───pose
+│   │   ├───nn
+│   │   │   └───yolo_pose
+│   │   ├───rf
+│   │   │   ├───mediapipe
+│   │   │   └───yolo_pose
+│   ├───pose_classifier
+│   │   └───pose
+│   │       └───yolo_pose
+├───fall_detector
+│   ├───adaboost
+│   ├───resnet
+│   └───xgboost
+└───metrics 
+```
+This is an overview of the current structure of our models directory. This is where you will find all files used for 
+training the classifiers and fall detector. Running the script contained inside each directory will start the training process 
+of the classifier or detector if the necessary data is supplied.  
+ 
+The repository does not include any data or model files for you, so you will need to provide your own datasets and pre-trained models to proceed.
 
 # Open Issues
 ***
-
 - Things to do are registered in [github tasks](https://github.com/mxttywxtty/bot-brigade/issues?q=is%3Aissue+is%3Aopen+label%3Atask)
 - Bugs are registered in [known open bugs](https://github.com/mxttywxtty/bot-brigade/issues?q=is%3Aissue+is%3Aopen+label%3Abug+)
 
