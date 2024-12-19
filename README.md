@@ -36,22 +36,26 @@ Our current classifiers are all pose based and consist of:
 - yolo-pose w/ random forest classifier
 - yolo-pose w/ neural network
 
-As of right now our yolo-pose w/ neural network is the best performing classifier we have:
+As of right now our yolo-pose w/ random forest classifier is the best performing classifier on inference we have. Metrics for this classifier on a test set are:
 
-<img width="385" alt="Screenshot 2024-12-18 at 03 22 50" src="https://github.com/user-attachments/assets/adf39d9c-f0d6-491a-8168-5d1bdd5034e0" />
+<img width="487" alt="Screenshot 2024-12-19 at 02 41 19" src="https://github.com/user-attachments/assets/9bde8065-051c-462e-b9ef-385c567c9f0a" />
 
-Collecting more data 
+
+These results are the results training on a dataset with a slight class imbalance. Fixing this + adding even more images will probably return even better results.
+
+We have also experimented with a 2d cnn classifier and used the rgb values of images as input. But this isn't in use anymore.
 
 ## Results
-For a set of 38 videos (... negative/... positive) the algorithm scored
+For a set of 38 videos (17 negative/21 positive) the algorithm scored
 
-- ...% precision
-- ...% recall
-- ...% false alert rate
+- 100% precision
+- 67% recall
+- 0.0% false alert rate
 
-<img width="667" alt="Screenshot 2024-12-08 at 22 10 10" src="https://github.com/user-attachments/assets/27fd0369-d4d4-449c-b266-242c51765a0e">
+<img width="616" alt="Screenshot 2024-12-18 at 22 38 14" src="https://github.com/user-attachments/assets/d8b191e0-78d0-41ad-bc86-4005a5a03b27" />
 
-This marks a significant improvement compared to previous weeks. However, the evaluation highlights areas where our algorithm is still falling short. In certain scenarios, the classifier continues to make incorrect classifications (red), which is unacceptable in critical situations. Additionally, the fine-tuned YOLO model occasionally fails to perform accurately, resulting in missed alert detections (yellow).
+This marks a real significant improvement compared to previous weeks. However, the evaluation highlights areas where our algorithm is still falling short. This area is the detection of a person. The fine-tuned YOLO model still fails to detect persons accurately in certain situations, resulting in missed alert detections (yellow). We believe this is also preventable by trying other approaches as discussed earlier in this README.
+
 
 
 ## The sources
@@ -105,9 +109,12 @@ This is an overview of the current structure of our models directory. This is wh
 training the classifiers and fall detector. Running the script contained inside each directory will start the training process 
 of the classifier or detector if the necessary data is supplied.  
  
-The repository does not include any data or model files for you, so you will need to provide your own datasets and pre-trained models to proceed.
+The repository does not include any data or model files for you, so you will need to provide your own datasets to train or use your own pre-trained models to proceed.
+You can also check the Bot Brigade MinIO bucket for weight files. 
+
 
 # Open Issues
+
 ***
 - Things to do are registered in [github tasks](https://github.com/mxttywxtty/bot-brigade/issues?q=is%3Aissue+is%3Aopen+label%3Atask)
 - Bugs are registered in [known open bugs](https://github.com/mxttywxtty/bot-brigade/issues?q=is%3Aissue+is%3Aopen+label%3Abug+)
