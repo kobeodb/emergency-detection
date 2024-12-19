@@ -103,7 +103,7 @@ if __name__ == '__main__':
     pose_dir = current_file
 
     while pose_dir.name != 'src' and pose_dir != pose_dir.parent:
-        src_dir = pose_dir.parent
+        pose_dir = pose_dir.parent
 
     data_path = Path(pose_dir / 'dataset')
 

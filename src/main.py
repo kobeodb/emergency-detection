@@ -23,13 +23,28 @@ videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
 # videos_2b_tested = student_videos_2b_tested_false_alert
 # videos_2b_tested = my_videos_2b_tested_false_alert
 # videos_2b_tested = laying_but_okay
+# videos_2b_tested = student_videos_2b_tested_missed_alert
+
+
 
 device = 'mps'
 # device = 'cuda'
 # device = 'cpu'
 
-visualize_bbox = False
-make_eval_table = True
+demo = True
+
+############################################################
+
+
+if demo:
+    visualize_bbox = True
+    make_eval_table = False
+
+    videos_2b_tested = student_videos_demo + my_videos_demo
+
+else:
+    visualize_bbox = False
+    make_eval_table = True
 
 ############################################################
 
@@ -64,8 +79,13 @@ assert not (use_minio and use_local and download_from_minio_and_store_in_file), 
 ##############################################################
 
 conf_thres_detection              = 0.4     #minimum confidence for yolo detection.
-secs_fall_motion_tracking         = 0       #maximum seconds between when a fall is detected and when motion tracking starts.
-secs_motion_tracking_double_check = 3       #seconds between the start of motion tracking and the double check with the classifier
+
+if demo:
+    secs_fall_motion_tracking           = 2
+    secs_motion_tracking_double_check   = 3
+else:
+    secs_fall_motion_tracking           = 0       #maximum seconds between when a fall is detected and when motion tracking starts.
+    secs_motion_tracking_double_check   = 3       #seconds between the start of motion tracking and the double check with the classifier
 
 prob_thres_img_classifier         = 0.5     #if prob < threshold -> emergency
                                             #if prob > threshold -> fine
@@ -74,7 +94,6 @@ prob_thres_pose_classifier        = 0.7     # =
 acc_in_sec_of_alert               = 6       #amount of seconds in where a frame alert is considered correct.
 
 motion_sensitivity                = 30      #if you increase this number more motion is needed to detect motion
-
 
 #######################################################
 ## fall detection configuration ##
@@ -254,7 +273,7 @@ if use_std_dev_motion:
     columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'aspr_bbox' ,'motion', 'on_the_ground', 'trigger_classifier', 'alert', 'on_ground_count' ,'no_motion_on_ground_count']
 
 
-def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id, factor):
+def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id):
     if use_static_back_motion:
         motion_threshold = 1000
 
@@ -319,6 +338,8 @@ def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id, factor):
             y_prev = row[col_y]
             w_prev = row[col_w]
             h_prev = row[col_h]
+
+            factor = max(2, abs((w_prev + h_prev) / motion_sensitivity))
 
             if (abs(x_prev - xmin) > w_prev / factor or abs(y_prev - ymin) > h_prev / factor or abs(
                     w_prev - w) > w_prev / factor or abs(h_prev - h) > h_prev / factor):
@@ -431,7 +452,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
     alert = False
     static_back = None
     generate_alert = False
-    motion = False
+    motion = True
     on_the_ground = False
     no_motion_on_ground_count = 0
 
@@ -441,7 +462,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
             new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, False, False, None, 0,0]], columns=columns)
 
         if use_distance_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion,on_the_ground, False, False, 0, 0]], columns=columns)
+            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, False, False, 0, 0]], columns=columns)
 
         if use_std_dev_motion:
                     new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, aspr_bbox, motion,on_the_ground, False, False, 0 ,0]], columns=columns)
@@ -461,8 +482,10 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
         else:
             on_ground_count = 0
 
-        if on_ground_count >= max_frames_fall_motion_tracking:
-            motion = check_for_motion(frame, xmin_bbox, ymin_bbox, h_bbox, w_bbox, track_history, track_id, motion_sensitivity/process_frames_reduction_factor)
+        # print(f"[DEBUG] on the ground count: {on_ground_count}")
+        if on_ground_count > max_frames_fall_motion_tracking:
+            motion = check_for_motion(frame, xmin_bbox, ymin_bbox, h_bbox, w_bbox, track_history, track_id)
+            print(f"[DEBUG] motion: {motion}")
 
             if on_the_ground and not motion:
                 no_motion_on_ground_count = prev_no_motion_count + 1
@@ -550,23 +573,23 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
                     prediction = yolo_pose_nn_classification(input_classification)
                     print(f"prediction: {prediction}")
 
-                    emergency_proba = prediction[0]
-                    no_emergency_proba = prediction[1]
+                    emergency_proba = prediction[1] # [fine, needhelp]
+                    no_emergency_proba = prediction[0]
 
                     if emergency_proba >= prob_thres_pose_classifier:
-                        prediction = 0 #fine
+                        prediction_idx = 0
                     elif emergency_proba <= prob_thres_pose_classifier:
-                        prediction = 1 #need help
+                        prediction_idx = 1
 
-                    class_names = ("no emergency", "emergency")
-                    predicted_label = class_names[int(prediction)]
+                    class_names = ("emergency", "no emergency")
+                    predicted_label = class_names[int(prediction_idx)]
+
+                    proba = emergency_proba
 
                     if predicted_label == 'no emergency':
                         generate_alert = False
-
-                    proba = emergency_proba
-                    if prediction == 1:
                         proba = no_emergency_proba
+
 
                     print(f'Classifier predicted: {predicted_label}, with probability: {proba} on frame {frame_nb}')
 
@@ -679,8 +702,11 @@ for vid in videos_2b_tested:
     fps_orig = video_cap.get(cv2.CAP_PROP_FPS)
     print('resolution:' + str(h_res) + 'x' + str(v_res) + ' fps:' + str(fps_orig))
 
-    process_frames_reduction_factor = 3 #this will perform frameskipping, for example
-                                        # -> if the fps of the video is 30 fps, this will now be reduced to 10fps
+    if demo:
+        process_frames_reduction_factor = 1
+    else:
+        process_frames_reduction_factor = 3 #this will perform frameskipping, for example
+                                            # -> if the fps of the video is 30 fps, this will now be reduced to 10fps
     fps_reduced=round(fps_orig/process_frames_reduction_factor)
 
     max_frames_fall_motion_tracking = round(fps_reduced*secs_fall_motion_tracking)
@@ -775,7 +801,9 @@ for vid in videos_2b_tested:
 
                     cropped_frame = frame[ymin:ymax, xmin:xmax]
 
-                    new_track_history, no_motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area, aspr,cls_name, max_frames_fall_motion_tracking, max_frames_motion_tracking_double_check, process_frames_reduction_factor)
+                    new_track_history, motion, on_the_ground, alert = update_track_history(track_history, track_id, clean_frame, frame_count, xmin, ymin, w, h, area, aspr,cls_name, max_frames_fall_motion_tracking, max_frames_motion_tracking_double_check, process_frames_reduction_factor)
+
+                    # print(f"[DEBUG] motion: {motion}")
 
                     if check_if_last_frame_was_alert(new_track_history[track_id]):
                         bbox_color = RED
@@ -786,10 +814,11 @@ for vid in videos_2b_tested:
 
                             if make_eval_table:
                                 break
-                    elif on_the_ground and no_motion:
-                        bbox_color = YELLOW
-                    elif on_the_ground:
+                    elif on_the_ground and motion:
                         bbox_color = ORANGE
+                    elif on_the_ground and not motion:
+                        bbox_color = YELLOW
+
                     else:
                         bbox_color = GREEN
 
