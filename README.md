@@ -38,7 +38,8 @@ Our current classifiers are all pose based and consist of:
 
 As of right now our yolo-pose w/ random forest classifier is the best performing classifier on inference we have. Metrics for this classifier on a test set are:
 
-<img width="452" alt="Screenshot 2024-12-18 at 20 13 43" src="https://github.com/user-attachments/assets/92ba61b3-7038-4357-aa2a-3cc0b537686e" />
+<img width="487" alt="Screenshot 2024-12-19 at 02 41 19" src="https://github.com/user-attachments/assets/9bde8065-051c-462e-b9ef-385c567c9f0a" />
+
 
 These results are the results training on a dataset with a slight class imbalance. Fixing this + adding even more images will probably return even better results.
 
