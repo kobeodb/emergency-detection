@@ -19,6 +19,10 @@ venv
 /src/models/classifiers/pose/fall_pose_keypoint.csv
 /src/models/classifiers/pose/fall_pose_keypoint_v2.csv
 
+/src/models/fall_detector/adaboost/data/*
+/src/models/fall_detector/adaboost/fall_detection_dataset.csv
+
+
 
 #models
 src/models/classifiers/img/cnn/best_model.pth

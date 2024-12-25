@@ -4,4 +4,4 @@ test: "/Users/kobe/Documents/UCLL/School 2024-2025/AI Applications/emergency_det
 
 
 nc: 2
-names: ['not_on_ground', 'on_the_ground']
+names: ['on_the_ground','not_on_ground']

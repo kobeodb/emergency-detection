@@ -22,29 +22,18 @@ videos_2b_tested = my_videos_2b_tested+student_videos_2b_tested
 # videos_2b_tested = my_videos_2b_tested_false_alert + student_videos_2b_tested_false_alert
 # videos_2b_tested = student_videos_2b_tested_false_alert
 # videos_2b_tested = my_videos_2b_tested_false_alert
-# videos_2b_tested = laying_but_okay
+videos_2b_tested = laying_but_okay
 # videos_2b_tested = student_videos_2b_tested_missed_alert
-
 
 
 device = 'mps'
 # device = 'cuda'
 # device = 'cpu'
 
-demo = True
-
 ############################################################
 
-
-if demo:
-    visualize_bbox = True
-    make_eval_table = False
-
-    videos_2b_tested = student_videos_demo + my_videos_demo
-
-else:
-    visualize_bbox = False
-    make_eval_table = True
+visualize_bbox = True
+make_eval_table = False
 
 ############################################################
 
@@ -67,8 +56,8 @@ detect_alerts=True
 ## load videos configuration ##
 #############################################################
 
-use_minio = True
-use_local = False
+use_minio = False
+use_local = True
 
 download_from_minio_and_store_in_file = False
 
@@ -78,29 +67,25 @@ assert not (use_minio and use_local and download_from_minio_and_store_in_file), 
 ## algorithm parameter configuration ##
 ##############################################################
 
-conf_thres_detection              = 0.4     #minimum confidence for yolo detection.
+conf_thres_detection                = 0.4     #minimum confidence for yolo detection.
 
-if demo:
-    secs_fall_motion_tracking           = 2
-    secs_motion_tracking_double_check   = 3
-else:
-    secs_fall_motion_tracking           = 0       #maximum seconds between when a fall is detected and when motion tracking starts.
-    secs_motion_tracking_double_check   = 3       #seconds between the start of motion tracking and the double check with the classifier
+secs_fall_motion_tracking           = 0       #maximum seconds between when a fall is detected and when motion tracking starts.
+secs_motion_tracking_double_check   = 3       #seconds between the start of motion tracking and the double check with the classifier
 
-prob_thres_img_classifier         = 0.5     #if prob < threshold -> emergency
+prob_thres_img_classifier           = 0.5     #if prob < threshold -> emergency
                                             #if prob > threshold -> fine
-prob_thres_pose_classifier        = 0.7     # =
+prob_thres_pose_classifier          = 0.7     # =
 
-acc_in_sec_of_alert               = 6       #amount of seconds in where a frame alert is considered correct.
+acc_in_sec_of_alert                 = 6       #amount of seconds in where a frame alert is considered correct.
 
-motion_sensitivity                = 30      #if you increase this number more motion is needed to detect motion
+motion_sensitivity                  = 30      #if you increase this number more motion is needed to detect motion
 
 #######################################################
 ## fall detection configuration ##
 #######################################################
 
-use_custom_fall_detection   = False
-use_ft_yolo                 = True
+use_custom_fall_detection   = True
+use_ft_yolo                 = False
 assert not (use_custom_fall_detection and use_ft_yolo),"only 1 variable can be true at the same time"
 
 
@@ -131,10 +116,9 @@ if double_check_through_pose_classifier:
 ## Motion tracking configuration ##
 #######################################################
 
-use_static_back_motion  = False
 use_distance_motion     = True
 use_std_dev_motion      = False
-assert not (use_static_back_motion and use_distance_motion and use_std_dev_motion), "Only 1 variable can be True"
+assert not (use_distance_motion and use_std_dev_motion), "Only 1 variable can be True"
 
 #########################################################
 #########################################################
@@ -164,11 +148,14 @@ classifier_dir = Path(current_dir / "models" / "classifiers")
 
 if use_custom_fall_detection:
     from utils.all_yolo_classes import yolo_class_dict
+    import joblib
 
-    yolo_detect_model = "yolo11n.pt"
+    yolo_detect_model = "yolo11s.pt"
     yolo_detect_model_path = Path(model_weight_dir / "yolo_detection" / yolo_detect_model)
-
     yolo_model = YOLO(yolo_detect_model_path)
+
+    adaboost_model_path = Path(model_weight_dir / 'adaboost_fall_detection' / 'adaboost_fall_detector.pkl')
+    adaboost_model = joblib.load(adaboost_model_path)
 
 if use_ft_yolo:
     from utils.all_yolo_ft_classes import yolo_class_dict
@@ -265,8 +252,6 @@ emergency_detected=RED
 ## helper functions ##
 ##########################################################
 
-if use_static_back_motion:
-    columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'motion', 'on_the_ground', 'trigger_classifier', 'alert', 'static_back', 'on_ground_count' ,'no_motion_on_ground_count']
 if use_distance_motion:
     columns = ['frame_nb', 'xmin_bbox', 'ymin_bbox', 'w_bbox', 'h_bbox', 'area_bbox', 'motion', 'on_the_ground', 'trigger_classifier', 'alert', 'on_ground_count' ,'no_motion_on_ground_count']
 if use_std_dev_motion:
@@ -274,53 +259,6 @@ if use_std_dev_motion:
 
 
 def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id):
-    if use_static_back_motion:
-        motion_threshold = 1000
-
-        xmax = xmin + w
-        ymax = ymin + h
-
-        roi = frame[ymin:ymax, xmin:xmax]
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (21, 21), 0)
-
-        if track_id not in track_history or track_history[track_id].empty:
-            print(f"[DEBUG] No track history found for track_id: {track_id}. Initializing...")
-            track_history[track_id] = pd.DataFrame(columns=["static_back"])
-            last_idx = 0
-            static_back = None
-        else:
-            last_idx = track_history[track_id].index[-1]
-            static_back = track_history[track_id].loc[last_idx, 'static_back']
-
-        if static_back is None or static_back.shape != gray.shape:
-            print(f"[DEBUG] Initializing static_back for track_id: {track_id}")
-            static_back = gray
-            track_history[track_id].at[last_idx, 'static_back'] = static_back
-            return False
-
-        if gray.shape != static_back.shape:
-            print(f"[DEBUG] Resizing gray to match static_back shape for track_id: {track_id}")
-            gray = cv2.resize(gray, (static_back.shape[1], static_back.shape[0]))
-
-        diff_frame = cv2.absdiff(static_back, gray)
-
-        thresh_frame = cv2.threshold(diff_frame, 30, 255, cv2.THRESH_BINARY)[1]
-        thresh_frame = cv2.dilate(thresh_frame, None, iterations=2)
-
-        contours, _ = cv2.findContours(thresh_frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for contour in contours:
-            contour_area = cv2.contourArea(contour)
-            print(f"[DEBUG] Detected contour with area: {contour_area}")
-            if contour_area >= motion_threshold:
-                print(f"[DEBUG] Motion detected for track_id: {track_id}")
-                return True  # Motion detected
-
-        # If no motion detected, update the static background
-        print(f"[DEBUG] No motion detected. Updating static_back for track_id: {track_id}")
-        track_history[track_id].at[last_idx, 'static_back'] = gray
-        return False
-
     if use_distance_motion:
         motion = False
 
@@ -348,47 +286,43 @@ def check_for_motion(frame, xmin, ymin, h, w, track_history, track_id):
 
         return motion
 
-    # if use_std_dev_motion:
-        # nb_of_frames = min(10, len(track_history))
-        # track_history = track_history[track_id]
-        # track_history_last_nb_frames = track_history[-nb_of_frames:]
-        #
-        # col_area = "area_bbox"
-        # col_aspect_ratio = "aspr_bbox"
 
-        # if len(track_history) < 2:
-        #     return True
-
-        # length = len(track_history)
-        # print(f"length of history: {length}")
-
-        # if col_area in track_history_last_nb_frames.columns:
-            # area_change_series = track_history_last_nb_frames[col_area].dropna().diff().abs().dropna()
-            # print(f"area_change_series: {area_change_series}")
-
-            # area_change_avg = area_change_series.mean()
-            # area_change_std = area_change_series.std()
-            # area_prev = track_history_last_nb_frames[col_area].iloc[-1]
-            # low_motion_area_threshold = min(area_change_avg + motion_std_multiplier_area * area_change_std, motion_sensitivity)
-
-        # if col_aspect_ratio in track_history_last_nb_frames.columns:
-        #     aspr_change_series = track_history_last_nb_frames[col_aspect_ratio].dropna().diff().abs().dropna()
-        #     aspr_change_avg = aspr_change_series.mean()
-        #     aspr_change_std = aspr_change_series.std()
-
-        # area_low_motion_thres = area_change_avg + motion_std_multiplier_area * area_change_std
-        # aspr_low_motion_thres = aspr_change_avg + motion_std_multiplier_aspr * aspr_change_std
-        # print(f"Area Change Avg: {area_change_avg}, Area Change Std: {area_change_std}")
-        # print(f"Area Low Motion Threshold: {area_low_motion_thres}")
-        # motion = area_low_motion_thres > area_motion_sensitivity
-
-        # return motion
-
-
-def check_if_person_is_on_the_ground(cls_name) -> bool:
+def check_if_person_is_on_the_ground(track_data, bbox_w, bbox_h, cls_name) -> bool:
     if use_custom_fall_detection:
-        #todo -> this shit should probably not be in the same function but who cares
-        return False
+        area = bbox_w * bbox_h
+        aspect_ratio = bbox_w / bbox_h
+
+        area_change_avg = 0
+        area_change_std = 0
+        aspect_ratio_change_avg = 0
+        aspect_ratio_change_std = 0
+        aspect_ratio_avg = aspect_ratio
+        aspect_ratio_std = 0
+
+        P = min(10, len(track_data))
+
+        if P > 5:
+            track_data_df = pd.DataFrame(track_data)
+
+            track_data_last_p = track_data_df.iloc[-P:]
+
+            col_area = 'area'
+            col_ar = 'aspect_ratio'
+
+            area_change_avg = track_data_last_p[col_area].dropna().diff().dropna().mean()
+            area_change_std = track_data_last_p[col_area].dropna().diff().dropna().std()
+
+            aspect_ratio_change_avg = track_data_last_p[col_ar].dropna().diff().dropna().mean()
+            aspect_ratio_change_std = track_data_last_p[col_ar].dropna().diff().dropna().mean()
+
+            aspect_ratio_avg = track_data_last_p[col_ar].mean()
+            aspect_ratio_std = track_data_last_p[col_ar].std()
+
+        input_features = [[area, aspect_ratio, area_change_avg, area_change_std, aspect_ratio_change_avg, aspect_ratio_change_std, aspect_ratio_avg, aspect_ratio_std]]
+
+        predictions = adaboost_model.predict(input_features)[0]
+
+        return True if predictions == 0 else False
 
     if use_ft_yolo:
         if cls_name == 'not_on_ground':
@@ -450,16 +384,12 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
     """
 
     alert = False
-    static_back = None
     generate_alert = False
     motion = True
     on_the_ground = False
     no_motion_on_ground_count = 0
 
     if track_id not in track_history:
-
-        if use_static_back_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, False, False, None, 0,0]], columns=columns)
 
         if use_distance_motion:
             new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, False, False, 0, 0]], columns=columns)
@@ -474,7 +404,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
         prev_on_ground_count = last_record.get('on_ground_count')
         prev_no_motion_count = last_record.get('no_motion_on_ground_count', 0)
 
-        on_the_ground = check_if_person_is_on_the_ground(cls_name)
+        on_the_ground = check_if_person_is_on_the_ground(track_history, w_bbox, h_bbox, cls_name)
 
         if on_the_ground:
             on_ground_count = prev_on_ground_count + 1
@@ -485,7 +415,7 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
         # print(f"[DEBUG] on the ground count: {on_ground_count}")
         if on_ground_count > max_frames_fall_motion_tracking:
             motion = check_for_motion(frame, xmin_bbox, ymin_bbox, h_bbox, w_bbox, track_history, track_id)
-            print(f"[DEBUG] motion: {motion}")
+            # print(f"[DEBUG] motion: {motion}")
 
             if on_the_ground and not motion:
                 no_motion_on_ground_count = prev_no_motion_count + 1
@@ -496,8 +426,6 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
 
         generate_alert = no_motion_on_ground_count >= max_frames_motion_tracking_double_check
 
-        if use_static_back_motion:
-            static_back = track_history[track_id].iloc[-1]['static_back']
 
 
         alr_alerted = check_for_alert_in_history(track_history[track_id], number_max_frames=len(track_history[track_id]))
@@ -617,10 +545,8 @@ def update_track_history(track_history, track_id, frame, frame_nb, xmin_bbox, ym
             alert = True
 
         new_record = None
-        if use_static_back_motion:
-            new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, generate_alert, alert, static_back, on_ground_count ,no_motion_on_ground_count]], columns=columns)
 
-        elif use_distance_motion:
+        if use_distance_motion:
             new_record = pd.DataFrame([[frame_nb, xmin_bbox, ymin_bbox, w_bbox, h_bbox, area_bbox, motion, on_the_ground, generate_alert, alert, on_ground_count ,no_motion_on_ground_count]], columns=columns)
 
         elif use_std_dev_motion:
@@ -702,10 +628,8 @@ for vid in videos_2b_tested:
     fps_orig = video_cap.get(cv2.CAP_PROP_FPS)
     print('resolution:' + str(h_res) + 'x' + str(v_res) + ' fps:' + str(fps_orig))
 
-    if demo:
-        process_frames_reduction_factor = 1
-    else:
-        process_frames_reduction_factor = 3 #this will perform frameskipping, for example
+
+    process_frames_reduction_factor = 3 #this will perform frameskipping, for example
                                             # -> if the fps of the video is 30 fps, this will now be reduced to 10fps
     fps_reduced=round(fps_orig/process_frames_reduction_factor)
 
@@ -807,6 +731,7 @@ for vid in videos_2b_tested:
 
                     if check_if_last_frame_was_alert(new_track_history[track_id]):
                         bbox_color = RED
+                        txt = 'EMERGENCY'
                         if not emergency:
                             emergency = True
                             alerts_generated.append(frame_count)
@@ -816,14 +741,17 @@ for vid in videos_2b_tested:
                                 break
                     elif on_the_ground and motion:
                         bbox_color = ORANGE
+                        'on_the_ground'
                     elif on_the_ground and not motion:
                         bbox_color = YELLOW
+                        txt = 'motion tracking'
 
                     else:
                         bbox_color = GREEN
+                        txt = 'not_on_ground'
 
                     cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), bbox_color, thickness=2)
-                    # cv2.putText(f"{frame}, id: {track_id}, {(xmin + 5, ymin - 8)}, {cv2.FONT_HERSHEY_SIMPLEX}, {1}, ")
+                    cv2.putText(frame,  txt, (xmin + 5, ymin - 8), cv2.FONT_HERSHEY_SIMPLEX, 1, bbox_color , 2)
 
                 if visualize_bbox:
                     standard_width, standard_height = 640, 480

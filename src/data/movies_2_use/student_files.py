@@ -97,6 +97,7 @@ student_positive_2b_tested=[ai4id_100,nn_1000,ai4id_101,aw_100,aw_101,aw_102,aw_
 student_videos_2b_tested_false_alert = [nn_1000]
 student_videos_2b_tested_missed_alert = [aw_102, aw_103, bb_105, bb_106]
 student_videos_demo = [ai4id_101]
+student_videos_demo_missed = [aw_102, bb_110]
 # these are the videos on which my latest algo fails
 #student_videos_2b_tested=[aw_103,bb_110]
 
